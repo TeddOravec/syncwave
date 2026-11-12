@@ -11,6 +11,7 @@ import {
   Keyboard,
   ListMusic,
   MessageSquare,
+  Pause,
   Play,
   Radio,
   Search as SearchIcon,
@@ -620,7 +621,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   /* ----------------------------------------------------------- shortcuts */
 
   useShortcuts({
-    playpause: () => isHost && playPause(),
+    playpause: () => playPause(),
     next: () => isHost && skip(),
     prev: () => isHost && seekTo(Math.max(0, position - 10)),
     search: openSearch,
@@ -963,12 +964,26 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                 center !== "queue" || queue.length > 0 ? "min-h-0 flex-1" : "shrink-0"
               )}
             >
-              <CenterTabs
-                view={center}
-                setView={setCenter}
-                queueCount={queue.length}
-                historyCount={history.length}
-              />
+              {/* Pause lives beside the tabs so the room can be held overnight
+                  with its queue intact — and it is available to everyone, not
+                  just the host, because a shared room is cooperative. */}
+              <div className="mb-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={playPause}
+                  aria-label={isPlaying ? "Pause the room" : "Resume the room"}
+                  title={isPlaying ? "Pause (keeps the queue)" : "Resume"}
+                  className="sw-seg-item shrink-0"
+                >
+                  {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
+                </button>
+                <CenterTabs
+                  view={center}
+                  setView={setCenter}
+                  queueCount={queue.length}
+                  historyCount={history.length}
+                />
+              </div>
 
               {center === "queue" && (
                 <QueuePanel
@@ -1176,7 +1191,7 @@ function CenterTabs({
     </button>
   );
   return (
-    <div className="sw-seg mb-4 shrink-0" role="tablist" aria-label="Queue, history or session">
+    <div className="sw-seg mb-0 shrink-0 flex-1" role="tablist" aria-label="Queue, history or session">
       {item("queue", <ListMusic className="size-4" />, "Up next", queueCount)}
       {item("history", <HistoryIcon className="size-4" />, "History", historyCount)}
       {item("stats", <BarChart3 className="size-4" />, "Session")}
