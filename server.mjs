@@ -7,6 +7,7 @@ import next from "next";
 import { Server as IOServer } from "socket.io";
 import { registerRoomHandlers } from "./lib/rooms.mjs";
 import { handleAudioRequest, sweepCache } from "./lib/resolver.mjs";
+import { handleDjAudio } from "./lib/djvoice.mjs";
 import { ffmpegMissing } from "./lib/ffmpeg.mjs";
 import { jsRuntimeMissing } from "./lib/jsruntime.mjs";
 import { clearPublicUrl } from "./lib/publicurl.mjs";
@@ -21,6 +22,11 @@ const handle = app.getRequestHandler();
 await app.prepare();
 
 const server = createServer((req, res) => {
+  // DJ voice clips: same range-served shape as /audio, different source.
+  if (req.url && req.url.startsWith("/dj-audio/")) {
+    handleDjAudio(req, res);
+    return;
+  }
   if (req.url && req.url.startsWith("/audio/")) {
     handleAudioRequest(req, res);
     return;
