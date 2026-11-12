@@ -100,6 +100,9 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [you, setYou] = useState<string | null>(null);
   const [current, setCurrent] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  // Holding the queue: the current track runs to its end, nothing new starts.
+  const [holdQueue, setHoldQueue] = useState(false);
+  const [holdBy, setHoldBy] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
   const [queue, setQueue] = useState<Track[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -261,6 +264,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     };
     setCurrent(s.current);
     setIsPlaying(s.isPlaying);
+    setHoldQueue(Boolean(s.holdQueue));
+    setHoldBy(s.holdBy || null);
     setPreparing(Boolean(s.preparing));
     setShuffle(Boolean(s.shuffle));
     if (s.repeat) setRepeat(s.repeat);
@@ -971,11 +976,16 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                 <button
                   type="button"
                   onClick={playPause}
-                  aria-label={isPlaying ? "Pause the room" : "Resume the room"}
-                  title={isPlaying ? "Pause (keeps the queue)" : "Resume"}
+                  aria-label={holdQueue ? `Paused by ${holdBy || "someone"} — resume` : "Pause after this track"}
+                  title={
+                    holdQueue
+                      ? `Paused by ${holdBy || "someone"} — the queue is held. Press to resume.`
+                      : "Pause after this track (it finishes first; nothing new queues)"
+                  }
+                  data-held={holdQueue || undefined}
                   className="sw-seg-item shrink-0"
                 >
-                  {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
+                  {holdQueue ? <Play className="size-4" /> : <Pause className="size-4" />}
                 </button>
                 <CenterTabs
                   view={center}

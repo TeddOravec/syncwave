@@ -22,7 +22,11 @@ type Settings = {
   aiDjEnabled: boolean;
   personaId: string;
   hasApiKey?: boolean;
+  djVoiceProvider?: string;
+  djVoice?: string;
+  djBlurbEvery?: number;
 };
+type VoiceProvider = { id: string; label: string; voices: string[] };
 type TestResult = {
   ok: boolean;
   provider?: string;
@@ -30,6 +34,14 @@ type TestResult = {
   reply?: string;
   error?: string;
 };
+
+/**
+ * What the voice audition says. Short on purpose: the host gets one or two
+ * sentences between tracks, and a long sample tells you nothing about how it
+ * will sit over music.
+ */
+const VOICE_SAMPLE =
+  "That was Little Dark Age. Next up is Bang, and the room is all yours for the next six tracks.";
 
 const selectCls =
   "w-full rounded-md border border-input bg-field px-3 py-2 text-sm text-ink focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none";
@@ -89,6 +101,16 @@ export default function AiDjSettings({
   onSaved?: () => void;
 }) {
   const [s, setS] = useState<Settings | null>(null);
+  const [voiceProviders, setVoiceProviders] = useState<VoiceProvider[]>([]);
+
+  // The two TTS backends have different catalogues, so the voice list has to
+  // follow the provider rather than sitting in the page as one long select.
+  useEffect(() => {
+    fetch("/api/dj/voices")
+      .then((r) => r.json())
+      .then((d) => setVoiceProviders(d.providers || []))
+      .catch(() => setVoiceProviders([]));
+  }, []);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [apiKey, setApiKey] = useState("");
   const [saved, setSaved] = useState(false);
@@ -295,6 +317,74 @@ export default function AiDjSettings({
                 />
               </div>
             )}
+          </div>
+
+          <div className="mt-5 border-t border-line pt-5">
+            <Label className="mb-1.5 block">Speaking voice</Label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select
+                className={selectCls}
+                value={s.djVoiceProvider || "gemini"}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const list = voiceProviders.find((v) => v.id === next)?.voices || [];
+                  // A Gemini name is not a Kokoro voice. Swap the whole list and
+                  // land on its first entry rather than sending a 400-shaped name.
+                  set({
+                    djVoiceProvider: next,
+                    djVoice: list.includes(s.djVoice || "") ? s.djVoice : list[0] || "",
+                  });
+                }}
+              >
+                <option value="gemini">Gemini</option>
+                <option value="kokoro">Kokoro (local)</option>
+              </select>
+              <select
+                className={selectCls}
+                value={s.djVoice || ""}
+                onChange={(e) => set({ djVoice: e.target.value })}
+              >
+                {(voiceProviders.find((v) => v.id === (s.djVoiceProvider || "gemini"))?.voices || [])
+                  .concat(s.djVoice && !(voiceProviders.find((v) => v.id === (s.djVoiceProvider || "gemini"))?.voices || []).includes(s.djVoice) ? [s.djVoice] : [])
+                  .map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 gap-1.5"
+              onClick={() => {
+                const url = `/api/dj/preview?provider=${encodeURIComponent(
+                  s.djVoiceProvider || "gemini"
+                )}&voice=${encodeURIComponent(s.djVoice || "")}&text=${encodeURIComponent(VOICE_SAMPLE)}`;
+                new Audio(url).play().catch(() => {});
+              }}
+            >
+              Hear this voice
+            </Button>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Gemini sounds better and bills per character (~150 tokens a blurb); Kokoro is local,
+              free and roughly twice as fast.
+            </p>
+          </div>
+
+          <div className="mt-4">
+            <Label className="mb-1.5 block">Speak every N tracks</Label>
+            <Input
+              type="number"
+              min={0}
+              max={40}
+              value={String(s.djBlurbEvery ?? 6)}
+              onChange={(e) => set({ djBlurbEvery: Number(e.target.value) })}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Half the number looks back, half looks ahead — six means three played and three
+              coming up. Zero keeps the host quiet.
+            </p>
           </div>
         </section>
       )}
