@@ -21,6 +21,20 @@ evidence and the access model live in the vault at `02_Infrastructure/Services/S
 | 8 | `lib/rooms.mjs`, `components/Room.tsx` | **The room only advanced when the HOST's audio fired `ended`** — server gated on `host()`, client on `if (isHost)`. A backgrounded host tab stalled the room at the end of every track until someone vote-skipped. Any listener may now report it; the server keeps the first report matching its own `current`. | **yes [PR]** |
 | 9 | `lib/rooms.mjs` | (8) needs a guard: `repeat: one` replays the *same* `videoId`, so a duplicate report would advance again — six listeners, six instant skips. 3 s per-room advance debounce; also covers a queue that already holds the same video twice. | **yes [PR]** |
 
+| 10 | `lib/rooms.mjs`, `components/Room.tsx` | **Pause was host-only and unreachable.** `CONTROL_PLAYPAUSE` gated on `host()` and the shortcut on `isHost`, so nobody else had a control — and an empty room kept its clock running all night. Now any participant can hold the room (named in chat), and the last person leaving pauses it with the queue and position intact. Verified live: a non-host socket flipped a paused room back to playing. | **yes [PR]** |
+
+## DJ voice (not upstream-ready, still experimental)
+
+Between-songs blurb: `composeBlurb()` writes 1-3 sentences from the last three played, the next three
+queued (and who queued them), room mood, headcount and chat volume; `lib/djvoice.mjs` renders it to a
+cached opus clip through the fleet's local Kokoro server and range-serves it at `/dj-audio/<hash>.opus`.
+`/api/dj/preview?code=WORK&voice=bm_george` auditions it with no side effects — nothing is queued and
+nothing is broadcast. Settings: `djVoiceProvider`, `djVoice`, `djPersonaVoices` (a voice per DJ style),
+`djBlurbEvery` (default 6 — the blurb already looks three tracks back and three ahead).
+
+**Not wired yet:** no client plays the clip. Timing, ducking and sync are the next step; until then the
+endpoint is a preview only.
+
 ## Rules for this fork
 
 - Keep each change as its own commit with the reasoning in the message, so a PR can be cut by
