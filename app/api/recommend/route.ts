@@ -274,20 +274,30 @@ export async function GET(req: NextRequest) {
     const settled = queries.length
       ? await Promise.allSettled(queries.map((q) => searchSongs(q, limit + 4)))
       : [];
-    const lists = settled.map((r) => (r.status === "fulfilled" ? r.value : []));
+    // Keep each search's own results: we asked for an artist, so a row by
+    // somebody else is noise. Once the obvious hits are filtered out, an artist
+    // search starts returning karaoke and "as made famous by" covers by other
+    // names (measured: a search for one room favourite surfaced a Disney cast
+    // recording), and a suggestion panel is not the place to discover that.
+    const lists = settled.map((r, qi) => ({
+      query: queries[qi] || "",
+      rows: r.status === "fulfilled" ? r.value : [],
+    }));
     const seen = new Set<string>();
     const seenArtist = new Set<string>();
     const byArtist: Track[] = [];
-    const longest = Math.max(0, ...lists.map((l) => l.length));
+    const longest = Math.max(0, ...lists.map((l) => l.rows.length));
     for (let i = 0; i < longest; i += 1) {
-      for (const list of lists) {
-        const t = list[i];
+      for (const { query, rows } of lists) {
+        const t = rows[i];
         if (!t || seen.has(t.videoId) || heardIds.has(t.videoId)) continue;
         const key = artistKey(t.artist);
         // One row per artist here too. Searching an artist returns their
         // catalogue in release order, so without this the fallback fills the
         // panel with three tracks by whoever happened to rank first.
         if (!key || seenArtist.has(key) || avoidArtists.has(key)) continue;
+        const wanted = artistKey(query);
+        if (wanted && !key.includes(wanted) && !wanted.includes(key)) continue;
         seen.add(t.videoId);
         seenArtist.add(key);
         byArtist.push(t);
