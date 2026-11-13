@@ -261,12 +261,11 @@ export default function AiDjSettings({
             <div className="mt-5 border-t border-line pt-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <Label className="block">Pick from this room&rsquo;s history</Label>
+                  <Label className="block">Influenced by history</Label>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted">
                     Reads what the room actually plays through to the end — and what it skips —
                     when it suggests what comes next, and never offers back a track the room
-                    already heard. Off: the persona&rsquo;s taste alone, which tends to repeat
-                    itself.
+                    recently heard. Off: the persona’s taste alone, which tends to repeat itself.
                   </p>
                 </div>
                 <Switch
