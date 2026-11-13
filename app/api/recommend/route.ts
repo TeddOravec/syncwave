@@ -188,55 +188,76 @@ export async function GET(req: NextRequest) {
       });
 
       if (queries.length) {
-        // Enforce the diversity the prompt asked for rather than trusting it:
-        // one row per artist, and nothing by an artist that just played. A model
-        // that ignores the rule costs a row here, not a loop in the panel.
+        // Enforce the diversity the prompt asked for rather than trusting it: a
+        // model that ignores the rule costs a row here, not a loop in the panel.
         const recent = new Set(taste.recentArtists.map((a) => artistKey(a)));
-        const seenArtist = new Set<string>();
-        const kept: string[] = [];
-        for (const q of queries) {
-          const key = artistKey(artistOf(q));
-          if (!key || recent.has(key) || seenArtist.has(key)) continue;
-          // An artist this client has already been shown is not variety either:
-          // without this the model walked straight back to the top of the
-          // neighbours list on every refresh (measured: Gorillaz and Foster The
-          // People in three rounds out of four).
-          if (avoidArtists.has(key)) continue;
-          seenArtist.add(key);
-          kept.push(q);
-        }
-
-        // One search per suggestion, in parallel, each taking the top hit.
-        // Anything that doesn't resolve is dropped silently — a miss should
-        // cost a row, not the whole panel.
-        const settled = await Promise.allSettled(kept.map((q) => searchSongs(q, 1)));
         const seen = new Set<string>();
-        const picked: Track[] = [];
-        for (const r of settled) {
-          if (r.status !== "fulfilled") continue;
-          const top = r.value[0];
-          if (!top || seen.has(top.videoId) || heardIds.has(top.videoId)) continue;
-          seen.add(top.videoId);
-          picked.push(top);
-        }
 
-        // Reserve the neighbouring slots even when the model ignored them. These
-        // are already real tracks, so a reserve costs no extra search.
-        // Two neighbours is the floor, not the ceiling: when the model comes
-        // back short (it will, once the avoid list has eaten its favourites)
-        // the panel should still be full, and neighbours are already real
-        // tracks.
-        const wanted = Math.min(neighbours.length, Math.max(2, limit - picked.length));
-        const usedArtists = new Set(picked.map((t) => artistKey(t.artist)));
-        const near: Track[] = [];
-        for (const n of neighbours) {
-          if (near.length >= wanted) break;
-          const key = artistKey(n.artist);
-          if (!key || seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
-          if (avoidArtists.has(key) || usedArtists.has(key)) continue;
-          seen.add(n.videoId);
-          usedArtists.add(key);
-          near.push(n as Track);
+        /** Model lines → the ones worth searching, one per artist. */
+        const select = (block: Set<string>) => {
+          const used = new Set<string>();
+          const out: string[] = [];
+          for (const q of queries) {
+            const key = artistKey(artistOf(q));
+            if (!key || recent.has(key) || used.has(key) || block.has(key)) continue;
+            used.add(key);
+            out.push(q);
+          }
+          return out;
+        };
+
+        /** One search per suggestion, in parallel, top hit only. */
+        const resolve = async (lines: string[]) => {
+          const settled = await Promise.allSettled(lines.map((q) => searchSongs(q, 1)));
+          const got: Track[] = [];
+          for (const r of settled) {
+            if (r.status !== "fulfilled") continue;
+            const top = r.value[0];
+            if (!top || seen.has(top.videoId) || heardIds.has(top.videoId)) continue;
+            seen.add(top.videoId);
+            got.push(top);
+          }
+          return got;
+        };
+
+        /** Neighbour rows, newest artists first, never one already used here. */
+        const reserve = (wantedFor: number, block: Set<string>, used: Set<string>) => {
+          const out: Track[] = [];
+          for (const n of neighbours) {
+            if (out.length >= wantedFor) break;
+            const key = artistKey(n.artist);
+            if (!key || seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
+            if (block.has(key) || used.has(key)) continue;
+            seen.add(n.videoId);
+            used.add(key);
+            out.push(n as Track);
+          }
+          return out;
+        };
+
+        // Strict first: nothing by an artist that just played, nothing by an
+        // artist this client has already been shown. That is what a refresh
+        // means, and it is what stops the panel becoming a treadmill.
+        let picked = await resolve(select(avoidArtists));
+        let usedArtists = new Set(picked.map((t) => artistKey(t.artist)));
+        let near = reserve(
+          Math.min(neighbours.length, Math.max(2, limit - picked.length)),
+          avoidArtists,
+          usedArtists
+        );
+
+        // Nothing left at all means the room has heard every name we can reach
+        // without repeating. An empty panel is a worse answer than a second
+        // track by an artist it liked earlier, so fall back to blocking only
+        // what is currently playing: different tracks, familiar names.
+        if (!picked.length && !near.length) {
+          picked = await resolve(select(new Set()));
+          usedArtists = new Set(picked.map((t) => artistKey(t.artist)));
+          near = reserve(
+            Math.min(neighbours.length, Math.max(2, limit - picked.length)),
+            recent,
+            usedArtists
+          );
         }
 
         const results = interleave(picked, near, limit);
