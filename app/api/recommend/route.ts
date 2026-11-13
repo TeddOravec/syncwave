@@ -133,6 +133,16 @@ export async function GET(req: NextRequest) {
 
   const heardIds = new Set(history.slice(-40).map((h) => h.videoId).filter(Boolean));
 
+  // The client's avoid list is what makes a refresh a different question, and
+  // it has to bind the *neighbour reserve* too, not just the prompt: the reserve
+  // is drawn from a ranked list, so without this every refresh handed back the
+  // same two top-ranked neighbours (measured: three rounds, the same artist in
+  // all three) no matter what the model did. Artist-level, because a second
+  // track by an artist you were just shown is not variety.
+  const avoidArtists = new Set(
+    avoid.map((a) => artistKey(artistOf(a))).filter(Boolean)
+  );
+
   // Neighbourhood seeds: what is playing, then the last few things that played.
   // Four is deliberate — four up-next calls run in parallel in about a second
   // and cover the room's recent mood without hammering the catalogue.
@@ -208,11 +218,15 @@ export async function GET(req: NextRequest) {
         // Reserve the neighbouring slots even when the model ignored them. These
         // are already real tracks, so a reserve costs no extra search.
         const wanted = Math.min(2, Math.max(0, limit - picked.length), neighbours.length);
+        const usedArtists = new Set(picked.map((t) => artistKey(t.artist)));
         const near: Track[] = [];
         for (const n of neighbours) {
           if (near.length >= wanted) break;
-          if (seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
+          const key = artistKey(n.artist);
+          if (!key || seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
+          if (avoidArtists.has(key) || usedArtists.has(key)) continue;
           seen.add(n.videoId);
+          usedArtists.add(key);
           near.push(n as Track);
         }
 
@@ -262,11 +276,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const usedArtists = new Set(byArtist.slice(0, 6).map((t) => artistKey(t.artist)));
     const near: Track[] = [];
     for (const n of neighbours) {
       if (near.length >= 2) break;
-      if (seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
+      const key = artistKey(n.artist);
+      if (!key || seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
+      if (avoidArtists.has(key) || usedArtists.has(key)) continue;
       seen.add(n.videoId);
+      usedArtists.add(key);
       near.push(n as Track);
     }
 
