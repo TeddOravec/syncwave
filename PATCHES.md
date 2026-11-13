@@ -1,8 +1,12 @@
 # Tandy patches on top of upstream Syncwave
 
-Our working fork. `main` = upstream `v1.3.0` (`c9b4adc`) plus the changes below; `upstream` branch is
-kept pristine so we can rebase onto a new release. Nothing here is upstream yet — each item is a
-candidate PR, and the ones marked **[PR]** are small and self-contained enough to send.
+Our working fork. `main` = upstream `v1.3.0` (`c9b4adc`) plus the changes below; the `upstream` remote
+(SAKMZ) stays pristine so we can rebase onto a new release.
+
+**Items 1-9 are submitted upstream as [PR #1](https://github.com/SAKMZ/syncwave/pull/1)**
+(branch `fix/playback-queue-and-pwa`, cut from `v1.3.0` as a single commit of fixes only — no new
+features, no AI DJ work). Items 10 and 11 and the DJ voice are deliberately fork-only until there is a
+signal the maintainer is reading PRs: upstream is a solo project, 18 stars, and had never received one.
 
 Built and deployed as **CT 1490 on Sol** (`https://listen.tandy.land`). Service notes, verification
 evidence and the access model live in the vault at `02_Infrastructure/Services/Syncwave.md`.
