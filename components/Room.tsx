@@ -1025,6 +1025,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
               )}
             >
               <Recommendations
+                code={code}
                 seed={current}
                 mood={mood}
                 excludeIds={roomIds}

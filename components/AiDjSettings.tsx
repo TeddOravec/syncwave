@@ -21,6 +21,7 @@ type Settings = {
   llmBaseUrl: string;
   aiDjEnabled: boolean;
   personaId: string;
+  djUseHistory?: boolean;
   hasApiKey?: boolean;
   djVoiceProvider?: string;
   djVoice?: string;
@@ -145,6 +146,7 @@ export default function AiDjSettings({
       llmBaseUrl: s.llmBaseUrl,
       aiDjEnabled: s.aiDjEnabled,
       personaId: s.personaId,
+      djUseHistory: s.djUseHistory !== false,
     };
     if (apiKey.trim()) payload.llmApiKey = apiKey.trim();
     const res = await fetch("/api/settings", {
@@ -250,6 +252,28 @@ export default function AiDjSettings({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Without this the DJ picks from its genre string alone, and the
+                same handful of names comes back all night. It is a switch
+                rather than a fact because a room that wants a pure persona
+                station should be able to have one. */}
+            <div className="mt-5 border-t border-line pt-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <Label className="block">Pick from this room&rsquo;s history</Label>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted">
+                    Reads what the room actually plays through to the end — and what it skips —
+                    when it suggests what comes next, and never offers back a track the room
+                    already heard. Off: the persona&rsquo;s taste alone, which tends to repeat
+                    itself.
+                  </p>
+                </div>
+                <Switch
+                  checked={s.djUseHistory !== false}
+                  onCheckedChange={(v: boolean) => set({ djUseHistory: v })}
+                />
+              </div>
             </div>
           </div>
         )}
