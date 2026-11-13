@@ -56,6 +56,17 @@ function artistKey(name: string) {
   return String(name || "").split(",")[0].trim().toLowerCase();
 }
 
+/** "Artist - Title" → its two halves. Titles may contain " - " themselves. */
+function splitRow(line: string) {
+  const parts = String(line || "").split(/\s+[-–—]\s+/);
+  return { artist: parts[0] ?? "", title: parts.slice(1).join(" - ") };
+}
+
+/** One row, normalised — the identity a suggestion is served by. */
+function rowKey(artist: string, title: string) {
+  return `${artistKey(artist)} - ${String(title || "").trim().toLowerCase()}`;
+}
+
 /** Alternate two lists so the panel does not read as two blocks. */
 function interleave(a: Track[], b: Track[], limit: number) {
   const out: Track[] = [];
@@ -142,6 +153,15 @@ export async function GET(req: NextRequest) {
   const avoidArtists = new Set(
     avoid.map((a) => artistKey(artistOf(a))).filter(Boolean)
   );
+  // The same row must never be served twice — artist-level blocking alone let a
+  // permissive pass hand back the identical track it handed back two refreshes
+  // ago (measured: three rows repeated verbatim across rounds 4-6).
+  const avoidRows = new Set(
+    avoid.map((a) => {
+      const r = splitRow(a);
+      return rowKey(r.artist, r.title);
+    })
+  );
 
   // Neighbourhood seeds: what is playing, then the last few things that played.
   // Four is deliberate — four up-next calls run in parallel in about a second
@@ -214,6 +234,7 @@ export async function GET(req: NextRequest) {
             if (r.status !== "fulfilled") continue;
             const top = r.value[0];
             if (!top || seen.has(top.videoId) || heardIds.has(top.videoId)) continue;
+            if (avoidRows.has(rowKey(top.artist, top.title))) continue;
             seen.add(top.videoId);
             got.push(top);
           }
@@ -228,6 +249,7 @@ export async function GET(req: NextRequest) {
             const key = artistKey(n.artist);
             if (!key || seen.has(n.videoId) || heardIds.has(n.videoId)) continue;
             if (block.has(key) || used.has(key)) continue;
+            if (avoidRows.has(rowKey(n.artist, n.title))) continue;
             seen.add(n.videoId);
             used.add(key);
             out.push(n as Track);
