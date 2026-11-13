@@ -222,7 +222,11 @@ export async function GET(req: NextRequest) {
 
         // Reserve the neighbouring slots even when the model ignored them. These
         // are already real tracks, so a reserve costs no extra search.
-        const wanted = Math.min(2, Math.max(0, limit - picked.length), neighbours.length);
+        // Two neighbours is the floor, not the ceiling: when the model comes
+        // back short (it will, once the avoid list has eaten its favourites)
+        // the panel should still be full, and neighbours are already real
+        // tracks.
+        const wanted = Math.min(neighbours.length, Math.max(2, limit - picked.length));
         const usedArtists = new Set(picked.map((t) => artistKey(t.artist)));
         const near: Track[] = [];
         for (const n of neighbours) {
@@ -236,6 +240,7 @@ export async function GET(req: NextRequest) {
         }
 
         const results = interleave(picked, near, limit);
+        const nearIds = new Set(near.map((t) => t.videoId));
         if (results.length) {
           const body = {
             results,
@@ -245,8 +250,9 @@ export async function GET(req: NextRequest) {
             history: { plays: taste.plays, artists: taste.liked.slice(0, 5) },
             // How many rows came from the catalogue's neighbourhood rather than
             // from the room's own artists — the number that says whether this
-            // panel is exploring or repeating.
-            fresh: near.length,
+            // panel is exploring or repeating. Counted on the final list, not on
+            // the reserve, so an interleave that dropped one is not over-reported.
+            fresh: results.filter((t) => nearIds.has(t.videoId)).length,
           };
           memoSet(memoKey, body);
           return NextResponse.json(body);
@@ -270,13 +276,20 @@ export async function GET(req: NextRequest) {
       : [];
     const lists = settled.map((r) => (r.status === "fulfilled" ? r.value : []));
     const seen = new Set<string>();
+    const seenArtist = new Set<string>();
     const byArtist: Track[] = [];
     const longest = Math.max(0, ...lists.map((l) => l.length));
     for (let i = 0; i < longest; i += 1) {
       for (const list of lists) {
         const t = list[i];
         if (!t || seen.has(t.videoId) || heardIds.has(t.videoId)) continue;
+        const key = artistKey(t.artist);
+        // One row per artist here too. Searching an artist returns their
+        // catalogue in release order, so without this the fallback fills the
+        // panel with three tracks by whoever happened to rank first.
+        if (!key || seenArtist.has(key) || avoidArtists.has(key)) continue;
         seen.add(t.videoId);
+        seenArtist.add(key);
         byArtist.push(t);
       }
     }
