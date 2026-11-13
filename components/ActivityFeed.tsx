@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState, type ElementType } from "react";
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -10,6 +10,8 @@ import {
   LogIn,
   LogOut,
   Music,
+  Pause,
+  Play,
   SkipForward,
   UserX,
 } from "lucide-react";
@@ -34,7 +36,7 @@ type Item =
   | { id: string; ts: number; type: "system"; kind: SystemKind | "generic"; msg: ChatMsg }
   | { id: string; ts: number; type: "reaction"; reaction: ReactionEvent };
 
-const ICON: Record<SystemKind | "generic" | "reaction", React.ElementType> = {
+const ICON: Record<SystemKind | "generic" | "reaction", ElementType> = {
   joined: LogIn,
   left: LogOut,
   queued: ListPlus,
@@ -43,6 +45,8 @@ const ICON: Record<SystemKind | "generic" | "reaction", React.ElementType> = {
   dj: Headphones,
   error: AlertTriangle,
   kicked: UserX,
+  paused: Pause,
+  resumed: Play,
   reaction: Heart,
   generic: ActivityIcon,
 };
@@ -57,6 +61,8 @@ const TONE: Record<SystemKind | "generic" | "reaction", string> = {
   dj: "text-[var(--accent-2)] bg-[color-mix(in_oklab,var(--accent)_20%,transparent)]",
   error: "text-[var(--destructive)] bg-[color-mix(in_oklab,var(--destructive)_14%,transparent)]",
   kicked: "text-[var(--destructive)] bg-[color-mix(in_oklab,var(--destructive)_14%,transparent)]",
+  paused: "text-ink-soft bg-white/8",
+  resumed: "text-[var(--accent-2)] bg-[color-mix(in_oklab,var(--accent)_16%,transparent)]",
   reaction: "text-[var(--accent-3)] bg-[color-mix(in_oklab,var(--accent-3)_14%,transparent)]",
   generic: "text-muted bg-white/5",
 };
@@ -155,13 +161,18 @@ function ActivityFeed({
 
 function ActivityItem({ item, now }: { item: Item; now: number }) {
   const kind = item.type === "reaction" ? "reaction" : item.kind;
-  const Icon = ICON[kind];
+  // Looked up by wire value, so it must survive a name this build has never
+  // heard of — a newer server, an older tab, a room persisted across an
+  // upgrade. An undefined component here is a crashed page (React #130), and
+  // one unknown event kind from the server is not worth a white screen.
+  const Icon = (ICON as Record<string, ElementType>)[kind] ?? ActivityIcon;
+  const tone = (TONE as Record<string, string>)[kind] ?? TONE.generic;
   const actor = item.type === "reaction" ? item.reaction.nick : item.msg.actor;
 
   return (
     <li className="sw-rise sw-row flex items-start gap-3 p-2">
       <span
-        className={cn("mt-0.5 grid size-7 shrink-0 place-items-center rounded-full", TONE[kind])}
+        className={cn("mt-0.5 grid size-7 shrink-0 place-items-center rounded-full", tone)}
         aria-hidden
       >
         <Icon className="size-3.5" />

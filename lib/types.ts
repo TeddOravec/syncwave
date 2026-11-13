@@ -49,7 +49,15 @@ export type Participant = {
   muted?: boolean;
 };
 
-/** What happened, for system entries in the room log. */
+/**
+ * What happened, for system entries in the room log.
+ *
+ * This union is the contract with `lib/rooms.mjs`: every `kind` the server
+ * pushes has to appear here, because the activity feed looks its icon up by
+ * name and an unknown name is an undefined component — which is a white page,
+ * not a missing icon. `paused` and `resumed` (hold the queue) were added to the
+ * server without being added here, and the pause button crashed the room.
+ */
 export type SystemKind =
   | "joined"
   | "left"
@@ -58,7 +66,9 @@ export type SystemKind =
   | "skipped"
   | "dj"
   | "error"
-  | "kicked";
+  | "kicked"
+  | "paused"
+  | "resumed";
 
 export type ChatMsg = {
   id: string;
