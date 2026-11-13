@@ -197,6 +197,11 @@ export async function GET(req: NextRequest) {
         for (const q of queries) {
           const key = artistKey(artistOf(q));
           if (!key || recent.has(key) || seenArtist.has(key)) continue;
+          // An artist this client has already been shown is not variety either:
+          // without this the model walked straight back to the top of the
+          // neighbours list on every refresh (measured: Gorillaz and Foster The
+          // People in three rounds out of four).
+          if (avoidArtists.has(key)) continue;
           seenArtist.add(key);
           kept.push(q);
         }
