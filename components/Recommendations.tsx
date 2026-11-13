@@ -134,10 +134,13 @@ function Recommendations({
   // saying "add a track", so don't say it twice.
   if (!seed && !loading && shown.length === 0) return null;
 
+  // Short on purpose: the header has room for one clause, and the room's mood
+  // already has its own badge — repeating it here only pushed "98 plays" into
+  // an ellipsis, which is the one number that explains where the list came from.
   const plays = history?.plays ?? 0;
   const basis =
     source === "dj" && dj
-      ? `${dj}'s pick${plays ? ` · ${plays} plays` : ""}${mood ? ` · ${mood.label.toLowerCase()}` : ""}`
+      ? `${dj}'s pick${plays ? ` · ${plays} plays` : ""}`
       : source === "history"
         ? `from ${plays} play${plays === 1 ? "" : "s"} here`
         : seed
@@ -158,7 +161,7 @@ function Recommendations({
         trailing={
           <>
             {basis && (
-              <span className="max-w-[12rem] truncate text-[11px] text-muted">{basis}</span>
+              <span className="max-w-[15rem] truncate text-[11px] text-muted">{basis}</span>
             )}
             <Button
               variant="ghost"
