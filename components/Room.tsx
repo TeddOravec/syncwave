@@ -574,13 +574,10 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
       if (cancelled) return;
       el.src = djSay.url;
       el.volume = Math.min(1, volumeRef.current);
-      el.play()
-        .then(() => {
-          if (!cancelled) setDucking(true);
-        })
-        // Autoplay refused: the text in chat is the whole blurb's content, so
-        // there is nothing to apologise for and nothing to retry.
-        .catch(() => {});
+      // Ducking follows the element's own `playing` event, not this promise:
+      // the music should only step back while there is actually a voice coming
+      // out, and `playing` is the one signal that means that.
+      el.play().catch(() => {});
     };
     const lead = djSay.at - serverNow();
     const id = setTimeout(start, Math.max(0, lead));
@@ -894,6 +891,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
           room's clock. */}
       <audio
         ref={djAudioRef}
+        onPlaying={() => setDucking(true)}
         onEnded={() => setDucking(false)}
         onPause={() => setDucking(false)}
         onError={() => setDucking(false)}
