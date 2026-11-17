@@ -770,9 +770,18 @@ html { scroll-behavior: smooth; }
    instead of pushing it down — measured: 143px of overlap at 390x667.
    From md up the container is the grid and the columns are grid items, so its
    floor goes away and the grid's own height rules. */
-.sw-room-body { min-height: calc(var(--room-floor) + 3rem); }
+/* Only the tabs that actually show a floored column get it: the Now tab is the
+   now-playing card, which already scrolls itself, and a floor there left a
+   landscape phone scrolling through 250px of nothing. At md the floor also
+   clears the container's bottom padding, so the fold lands after the panel
+   rather than on the last row. */
+.sw-room-body[data-room-tab="queue"],
+.sw-room-body[data-room-tab="search"],
+.sw-room-body[data-room-tab="chat"] {
+  min-height: calc(var(--room-floor) + 3rem);
+}
 @media (min-width: 768px) {
-  .sw-room-body { --room-floor: 34rem; min-height: 0; }
+  .sw-room-body { --room-floor: 34rem; }
 }
 .sw-drawer-overlay, .sw-alert-overlay { position: fixed; }
 .sw-toast { border: 1px solid var(--soft-border); background: var(--surface); color: var(--ink); border-radius: var(--radius-sm); }

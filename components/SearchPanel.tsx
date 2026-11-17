@@ -71,7 +71,6 @@ function SearchPanel({
   shortcut = false,
   openSignal = 0,
   seed,
-  onArtistClick,
   className,
 }: {
   onAdd: (t: Track) => void;
@@ -90,8 +89,6 @@ function SearchPanel({
    * and so a click does not look like a keystroke in the field.
    */
   seed?: { query: string; type: SearchType; n: number };
-  /** Artist names in the results, for jumping sideways to another artist. */
-  onArtistClick?: (artist: string) => void;
   className?: string;
 }) {
   const [q, setQ] = useState("");
@@ -219,13 +216,22 @@ function SearchPanel({
     }
     const id = setTimeout(() => run(q, tab), DEBOUNCE_MS);
     return () => clearTimeout(id);
-  }, [q, tab, album, run, runLink]);
+    // `seed?.n` is here, not in the effect above, so that pressing an artist
+    // whose name is already in the field still runs exactly one search.
+  }, [q, tab, album, run, runLink, seed?.n]);
 
   /**
    * A search asked for from somewhere else — an artist name pressed in the
-   * queue, the history, a suggestion or a result row. It fills the field, sets
-   * the tab and runs, so pressing a name behaves exactly like typing it in and
-   * pressing Enter. Album/link state is cleared first: this is a new question.
+   * queue, the history, a suggestion or on the now-playing card. It fills the
+   * field, sets the tab and runs, so pressing a name behaves exactly like
+   * typing it in and pressing Enter. Album/link state is cleared first: this
+   * is a new question.
+   *
+   * Result rows deliberately do not have one of these buttons: the row is a
+   * `role="option"` in a listbox, whose children are presentational, so a
+   * focusable control inside it is an ARIA violation and steals a tab stop
+   * from the arrow-key walk. Searching an artist from a result's own artist
+   * name is what the Artists tab is for.
    */
   useEffect(() => {
     if (!seed?.n) return;
@@ -237,14 +243,11 @@ function SearchPanel({
     setOpen(true);
     setTab(seed.type);
     setQ(term);
-    // Setting the field is enough for the debounced effect above to run the
-    // search — except when this artist is already what is in the field, where
-    // nothing about `q` or `tab` changes and it has to be asked for directly.
-    // Either way it is one request, not two.
-    if (term === q.trim() && seed.type === tab) run(term, seed.type);
     inputRef.current?.focus();
     // Deliberately only on the counter: the same artist pressed twice is two
-    // searches, and `q`/`tab` changing must not re-run this.
+    // searches, and `q`/`tab` changing must not re-run this — the debounced
+    // effect below does the fetching, and it takes `seed.n` as well so that
+    // naming the artist already in the field still searches again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed?.n]);
 
@@ -493,7 +496,6 @@ function SearchPanel({
               art={t.thumbnail}
               title={t.title}
               artist={t.artist}
-              onArtistClick={onArtistClick}
               active={selected}
               option
               className="scroll-mt-2"

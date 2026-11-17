@@ -879,7 +879,6 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
           shortcut
           openSignal={searchSignal}
           seed={searchSeed}
-          onArtistClick={searchArtist}
           className="mx-auto hidden w-full max-w-xl md:block"
         />
 
@@ -947,11 +946,17 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
           minimum height, so when the viewport is too short to give them one the
           middle of the page scrolls instead of the lists being clipped to
           nothing. On a screen with room for it this never scrolls at all. */}
-      <main className="sw-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto" {...swipe}>
+      <main
+        className="sw-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+        {...swipe}
+      >
         {/* The bottom padding on phones is the reaction pill's safe area: it
             floats over this region, and without the gap it sits on top of
             whatever the panel ends with. */}
-        <div className="sw-room-body mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 pb-8 pt-4 md:grid md:h-full md:grid-cols-[minmax(0,1fr)_360px] md:pb-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]">
+        <div
+          data-room-tab={tab}
+          className="sw-room-body mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 pb-8 pt-4 md:grid md:h-full md:grid-cols-[minmax(0,1fr)_360px] md:pb-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]"
+        >
           {/* ── column 1: the hero ── */}
           <NowPlaying
             current={current}
@@ -993,7 +998,6 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                 variant="panel"
                 openSignal={searchSignal}
                 seed={searchSeed}
-                onArtistClick={searchArtist}
                 className="min-h-0 flex-1"
               />
             </Panel>

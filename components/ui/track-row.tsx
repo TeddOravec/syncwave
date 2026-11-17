@@ -219,9 +219,11 @@ export function TrackRow({
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
           {onArtistClick ? (
             // A button, not a span: the artist under a title is the one piece of
-            // a row that leads somewhere. stopPropagation because the row itself
-            // is often a control (adding a search result) and pressing the name
-            // must not also add the track.
+            // a row that leads somewhere. stopPropagation because a row can
+            // itself be a control, and pressing the name must do one thing, not
+            // two. Callers must not set this on a row that is a listbox option —
+            // its children are presentational and the extra tab stop would
+            // break the arrow-key walk.
             <button
               type="button"
               onClick={(e) => {
