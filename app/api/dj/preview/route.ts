@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRoom } from "@/lib/rooms.mjs";
 import { composeBlurb, djEnabled } from "@/lib/dj.mjs";
-import { synthesize, voiceEnabled } from "@/lib/djvoice.mjs";
+import { synthesize, voiceEnabled, clipUrl } from "@/lib/djvoice.mjs";
 import { activeVoice } from "@/lib/settings.mjs";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     voice,
     provider,
     every: want.every,
-    audioUrl: audio ? `/dj-audio/${audio.hash}.opus` : null,
+    audioUrl: audio ? clipUrl(audio) : null,
     bytes: audio ? audio.bytes : null,
     cached: audio ? audio.cached : null,
     voiceError,
