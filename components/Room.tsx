@@ -607,6 +607,35 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.videoId]);
 
+  // A tab left open across a deploy keeps running yesterday's bundle while the
+  // server moves on. It looks healthy — the clock is the server's — and is simply
+  // missing whatever shipped (which is how a room full of listeners heard a
+  // between-song pause and no voice for an hour). Poll the build id and reload
+  // once it changes; a reload resyncs only this device, it never disturbs the room.
+  useEffect(() => {
+    if (!joined) return;
+    let seen: string | null = null;
+    let done = false;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/health", { cache: "no-store" });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!d.build) return;
+        if (!seen) seen = d.build;
+        else if (d.build !== seen && !done) {
+          done = true;
+          window.location.reload();
+        }
+      } catch {
+        /* offline; try again on the next tick */
+      }
+    };
+    check();
+    const id = setInterval(check, 120_000);
+    return () => clearInterval(id);
+  }, [joined]);
+
   const resumeAudio = () => {
     const audio = activeSlot === "A" ? audioRef.current : nextAudioRef.current;
     if (!audio) return;
