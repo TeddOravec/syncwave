@@ -1270,6 +1270,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
         downloadPct={curDl}
         buffering={buffering}
         preparing={preparing}
+        djTalking={ducking}
         shuffle={shuffle}
         repeat={repeat}
         skipVotes={skipVotes}

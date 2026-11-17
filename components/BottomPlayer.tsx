@@ -36,6 +36,7 @@ export default function BottomPlayer({
   downloadPct,
   buffering,
   preparing,
+  djTalking,
   shuffle,
   repeat,
   skipVotes,
@@ -64,6 +65,8 @@ export default function BottomPlayer({
   downloadPct: number | null;
   buffering: boolean;
   preparing: boolean;
+  /** The DJ's clip is actually playing — a track change is waiting on it. */
+  djTalking?: boolean;
   shuffle: boolean;
   repeat: RepeatMode;
   skipVotes: number;
@@ -98,13 +101,15 @@ export default function BottomPlayer({
     onSeek(ratio * dur);
   };
 
-  const status = preparing
-    ? cachePct >= 100
-      ? "Processing audio…"
-      : `Caching audio — ${cachePct}%`
-    : buffering
-      ? "Buffering…"
-      : current?.artist;
+  const status = djTalking
+    ? "The host is talking…"
+    : preparing
+      ? cachePct >= 100
+        ? "Processing audio…"
+        : `Caching audio — ${cachePct}%`
+      : buffering
+        ? "Buffering…"
+        : current?.artist;
 
   return (
     <footer className="sw-safe-b sw-safe-x relative z-40 shrink-0 border-t border-white/8 bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] backdrop-blur-2xl">
