@@ -761,9 +761,18 @@ html { scroll-behavior: smooth; }
    element because two `min-height` utilities on one node are decided by
    stylesheet order, not by the order they appear in the class list.
 --------------------------------------------------------------------------- */
-.sw-room-col { min-height: 26rem; }
+.sw-room-body { --room-floor: 26rem; }
+.sw-room-col { min-height: var(--room-floor); }
+
+/* On a phone the columns live inside a padded flex container rather than a
+   grid. The container has to carry the same floor plus its own padding,
+   otherwise the column grows past it and paints over the install banner below
+   instead of pushing it down — measured: 143px of overlap at 390x667.
+   From md up the container is the grid and the columns are grid items, so its
+   floor goes away and the grid's own height rules. */
+.sw-room-body { min-height: calc(var(--room-floor) + 3rem); }
 @media (min-width: 768px) {
-  .sw-room-col { min-height: 34rem; }
+  .sw-room-body { --room-floor: 34rem; min-height: 0; }
 }
 .sw-drawer-overlay, .sw-alert-overlay { position: fixed; }
 .sw-toast { border: 1px solid var(--soft-border); background: var(--surface); color: var(--ink); border-radius: var(--radius-sm); }

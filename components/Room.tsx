@@ -951,7 +951,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
         {/* The bottom padding on phones is the reaction pill's safe area: it
             floats over this region, and without the gap it sits on top of
             whatever the panel ends with. */}
-        <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 pb-8 pt-4 md:grid md:h-full md:grid-cols-[minmax(0,1fr)_360px] md:pb-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]">
+        <div className="sw-room-body mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 pb-8 pt-4 md:grid md:h-full md:grid-cols-[minmax(0,1fr)_360px] md:pb-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]">
           {/* ── column 1: the hero ── */}
           <NowPlaying
             current={current}
