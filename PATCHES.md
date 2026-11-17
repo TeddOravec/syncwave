@@ -41,14 +41,22 @@ nothing is queued and nothing is broadcast. Settings: `djVoiceProvider`, `djVoic
 (a voice per DJ style), `djBlurbEvery` (default 6 — the blurb already looks three tracks back and three
 ahead; `0` silences spoken blurbs without turning the DJ off).
 
-**It plays.** At a boundary where the cadence is due, the server emits `dj:say { url, at, videoId }` on
-the playback clock; each client starts that clip from its own `<audio>` element at `at`, ducks the room
-to 15% while it is actually speaking (the element's `playing` event, not a play() promise), and stops it
-if a skip moves the room to a different track. The text always lands in chat first, so a muted listener
-misses the voice and not the content, and on a blurb track the chat intro is skipped rather than the DJ
-saying the same thing twice. A blurb that is slow, muted, refused by autoplay or written for a skipped
-track costs the blurb and nothing else — the room's clock and sync loop are untouched, and the host
-joins a couple of seconds into the song the way a radio host talks over an intro.
+**It plays, in the gap.** At a boundary where the cadence is due the room caches the next track and
+then stays in `preparing` — no clock, nothing playing, queue untouched — while the host speaks, and the
+shared clock starts when the clip ends. So the sentence finishes and then the song begins, radio-style,
+rather than the host talking over an intro. `lib/djvoice.mjs` probes each clip's length with ffprobe
+(once, memoised) and the room holds for lead + duration + a short pad, capped at 25 s; a skip during the
+blurb re-checks the play token and the stale track never starts a clock. The text always lands in chat
+first, so a muted listener misses the voice and not the content, and on a blurb track the chat intro is
+skipped rather than the DJ saying the same thing twice.
+
+If the render fails or the length cannot be probed, it degrades to the old shape instead of a stalled
+room: the track starts on time and each client plays the voice over the intro with the music at 15%
+(the element's `playing` event drives the duck, not a play() promise).
+
+`/dj-audio/*` must be on the Caddy `@roomClient` bypass list on **both** front doors or it 302s to
+Authentik and every phone plays silence — that is not hypothetical, it is how the first half hour after
+the deploy went.
 
 The first track after a process start speaks: a room that has just come up has no idea how long it has
 been quiet, and announcing is the friendlier guess. `djBlurbEvery` = 1 is the way to hear every boundary
