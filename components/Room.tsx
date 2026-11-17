@@ -589,7 +589,10 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
       el.load();
       setDucking(false);
     };
-  }, [djSay]);
+    // `joined` is in the deps because the room's audio elements only exist once
+    // the join gate has rendered; a blurb that arrived in the same tick as the
+    // room state would otherwise find no element and never retry.
+  }, [djSay, joined]);
 
   // A skip lands a new track while the host is mid-sentence. The blurb was
   // written for the old one, so it stops rather than talking over a song it is
