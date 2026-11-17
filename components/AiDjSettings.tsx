@@ -25,6 +25,8 @@ type Settings = {
   hasApiKey?: boolean;
   djVoiceProvider?: string;
   djVoice?: string;
+  /** A voice per persona id, e.g. `{ lofi: "bm_george" }`. */
+  djPersonaVoices?: Record<string, string>;
   djBlurbEvery?: number;
 };
 type VoiceProvider = { id: string; label: string; voices: string[] };
