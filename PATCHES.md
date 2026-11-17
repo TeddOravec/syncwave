@@ -62,6 +62,19 @@ The first track after a process start speaks: a room that has just come up has n
 been quiet, and announcing is the friendlier guess. `djBlurbEvery` = 1 is the way to hear every boundary
 while tuning the writing.
 
+What the host is told, all of it learned by shipping it wrong:
+
+- **The room's local time, not the container's.** The container runs UTC, so anything from a bare
+  `new Date()` is six hours off; the prompt also used to cast the host as a late-night DJ, so a 2:53 pm
+  blurb said "quiet in here tonight". `ROOM_TZ` (default `America/Chicago`) now supplies the clock and
+  the prompt is told not to assume a time of day.
+- **One unambiguous "next track".** The blurb is composed while the clock is held, so `room.current` is
+  the track being introduced; calling the queue "coming up" made the model announce the song *after*
+  it. The cue is "the track you are introducing, which starts the moment you stop talking", and the
+  queue is "later, NOT the next track".
+- **The headcount in words, and the chat count labelled as chat.** "Just one of us in here" with four
+  listeners came from a bare "1 chat messages in the last 15 minutes" line being read as a headcount.
+
 Verified on dev: blurb composed and rendered (MP3 in `cache/dj/`), `dj:say` received by a real client
 with the clip set on its element, duck measured 0.461 -> 0.069 on the music element while speaking and
 back to 0.461 on end, text in chat. Not verifiable there: audible playback — the headless browser in
