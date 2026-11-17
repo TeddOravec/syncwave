@@ -32,6 +32,7 @@ import type {
   ReactionEvent,
   Repeat,
   RoomStats,
+  SearchType,
   Track,
 } from "@/lib/types";
 import { useArtworkTheme } from "@/hooks/useArtworkTheme";
@@ -127,6 +128,12 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [unread, setUnread] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchSignal, setSearchSignal] = useState(0);
+  // A search asked for by pressing an artist name rather than by typing.
+  const [searchSeed, setSearchSeed] = useState<{ query: string; type: SearchType; n: number }>({
+    query: "",
+    type: "songs",
+    n: 0,
+  });
   // Local per-listener volume — everyone controls their own, unlike playback.
   const [volume, setVolume] = useState(1);
 
@@ -623,6 +630,25 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     signal("queueing");
   }, [signal]);
 
+  /**
+   * Pressing an artist anywhere in the room searches them: the field fills in,
+   * the results land, and the tab switches to the search panel so a phone sees
+   * what a desktop's overlay shows. One handler for every list, so "wherever"
+   * is literally wherever — queue, history, suggestions, results, now playing.
+   */
+  const searchArtist = useCallback(
+    (artist: string) => {
+      const name = artist.trim();
+      if (!name) return;
+      setTab("search");
+      // `songs` rather than `artists`: tapping an artist card already means
+      // "show me their songs", so this lands on rows that can be added.
+      setSearchSeed((s) => ({ query: name, type: "songs", n: s.n + 1 }));
+      signal("queueing");
+    },
+    [signal]
+  );
+
   /* ----------------------------------------------------------- shortcuts */
 
   useShortcuts({
@@ -852,6 +878,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
           variant="overlay"
           shortcut
           openSignal={searchSignal}
+          seed={searchSeed}
+          onArtistClick={searchArtist}
           className="mx-auto hidden w-full max-w-xl md:block"
         />
 
@@ -938,6 +966,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
             onLike={likeCurrent}
             canSeek={isHost && !preparing && (current?.duration ?? 0) > 0}
             onSeek={seekTo}
+            onArtistClick={searchArtist}
             className={cn(
               tab === "now" ? "flex flex-1" : "hidden",
               "md:hidden xl:flex xl:h-full xl:flex-initial"
@@ -963,6 +992,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                 queuedIds={roomIds}
                 variant="panel"
                 openSignal={searchSignal}
+                seed={searchSeed}
+                onArtistClick={searchArtist}
                 className="min-h-0 flex-1"
               />
             </Panel>
@@ -1013,11 +1044,17 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                   onVote={voteTrack}
                   onReorder={reorderTrack}
                   onOpenSearch={openSearch}
+                  onArtistClick={searchArtist}
                   className="min-h-0 flex-1"
                 />
               )}
               {center === "history" && (
-                <HistoryPanel history={history} onReAdd={addTrack} className="min-h-0 flex-1" />
+                <HistoryPanel
+                  history={history}
+                  onReAdd={addTrack}
+                  onArtistClick={searchArtist}
+                  className="min-h-0 flex-1"
+                />
               )}
               {center === "stats" && <StatsPanel stats={stats} className="min-h-0 flex-1" />}
             </Panel>
@@ -1037,6 +1074,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                 mood={mood}
                 excludeIds={roomIds}
                 onAdd={addTrack}
+                onArtistClick={searchArtist}
                 className="min-h-0 flex-1"
               />
             </Panel>

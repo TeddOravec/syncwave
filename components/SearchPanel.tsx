@@ -70,6 +70,8 @@ function SearchPanel({
   variant = "panel",
   shortcut = false,
   openSignal = 0,
+  seed,
+  onArtistClick,
   className,
 }: {
   onAdd: (t: Track) => void;
@@ -82,6 +84,14 @@ function SearchPanel({
   shortcut?: boolean;
   /** Bump to focus the field from elsewhere — the `/` shortcut does this. */
   openSignal?: number;
+  /**
+   * A search to run from elsewhere — clicking an artist anywhere in the room.
+   * Carries its own counter so asking for the same artist twice still lands,
+   * and so a click does not look like a keystroke in the field.
+   */
+  seed?: { query: string; type: SearchType; n: number };
+  /** Artist names in the results, for jumping sideways to another artist. */
+  onArtistClick?: (artist: string) => void;
   className?: string;
 }) {
   const [q, setQ] = useState("");
@@ -210,6 +220,33 @@ function SearchPanel({
     const id = setTimeout(() => run(q, tab), DEBOUNCE_MS);
     return () => clearTimeout(id);
   }, [q, tab, album, run, runLink]);
+
+  /**
+   * A search asked for from somewhere else — an artist name pressed in the
+   * queue, the history, a suggestion or a result row. It fills the field, sets
+   * the tab and runs, so pressing a name behaves exactly like typing it in and
+   * pressing Enter. Album/link state is cleared first: this is a new question.
+   */
+  useEffect(() => {
+    if (!seed?.n) return;
+    const term = seed.query.trim();
+    if (!term) return;
+    setAlbum(null);
+    setLinkInfo(null);
+    setLinkError(null);
+    setOpen(true);
+    setTab(seed.type);
+    setQ(term);
+    // Setting the field is enough for the debounced effect above to run the
+    // search — except when this artist is already what is in the field, where
+    // nothing about `q` or `tab` changes and it has to be asked for directly.
+    // Either way it is one request, not two.
+    if (term === q.trim() && seed.type === tab) run(term, seed.type);
+    inputRef.current?.focus();
+    // Deliberately only on the counter: the same artist pressed twice is two
+    // searches, and `q`/`tab` changing must not re-run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.n]);
 
   // Overlay only: close on outside click.
   useEffect(() => {
@@ -456,6 +493,7 @@ function SearchPanel({
               art={t.thumbnail}
               title={t.title}
               artist={t.artist}
+              onArtistClick={onArtistClick}
               active={selected}
               option
               className="scroll-mt-2"
