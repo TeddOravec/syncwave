@@ -35,13 +35,31 @@ evidence and the access model live in the vault at `02_Infrastructure/Services/S
 
 Between-songs blurb: `composeBlurb()` writes 1-3 sentences from the last three played, the next three
 queued (and who queued them), room mood, headcount and chat volume; `lib/djvoice.mjs` renders it to a
-cached opus clip through the fleet's local Kokoro server and range-serves it at `/dj-audio/<hash>.opus`.
-`/api/dj/preview?code=WORK&voice=bm_george` auditions it with no side effects — nothing is queued and
-nothing is broadcast. Settings: `djVoiceProvider`, `djVoice`, `djPersonaVoices` (a voice per DJ style),
-`djBlurbEvery` (default 6 — the blurb already looks three tracks back and three ahead).
+cached **MP3** (both providers normalised — Ogg Opus is silent on iOS) and range-serves it at
+`/dj-audio/<hash>.mp3`. `/api/dj/preview?code=WORK&voice=bm_george` auditions it with no side effects —
+nothing is queued and nothing is broadcast. Settings: `djVoiceProvider`, `djVoice`, `djPersonaVoices`
+(a voice per DJ style), `djBlurbEvery` (default 6 — the blurb already looks three tracks back and three
+ahead; `0` silences spoken blurbs without turning the DJ off).
 
-**Not wired yet:** no client plays the clip. Timing, ducking and sync are the next step; until then the
-endpoint is a preview only.
+**It plays.** At a boundary where the cadence is due, the server emits `dj:say { url, at, videoId }` on
+the playback clock; each client starts that clip from its own `<audio>` element at `at`, ducks the room
+to 15% while it is actually speaking (the element's `playing` event, not a play() promise), and stops it
+if a skip moves the room to a different track. The text always lands in chat first, so a muted listener
+misses the voice and not the content, and on a blurb track the chat intro is skipped rather than the DJ
+saying the same thing twice. A blurb that is slow, muted, refused by autoplay or written for a skipped
+track costs the blurb and nothing else — the room's clock and sync loop are untouched, and the host
+joins a couple of seconds into the song the way a radio host talks over an intro.
+
+The first track after a process start speaks: a room that has just come up has no idea how long it has
+been quiet, and announcing is the friendlier guess. `djBlurbEvery` = 1 is the way to hear every boundary
+while tuning the writing.
+
+Verified on dev: blurb composed and rendered (MP3 in `cache/dj/`), `dj:say` received by a real client
+with the clip set on its element, duck measured 0.461 -> 0.069 on the music element while speaking and
+back to 0.461 on end, text in chat. Not verifiable there: audible playback — the headless browser in
+this fleet stalls any second media element at readyState 0 (the clip itself decodes: `decodeAudioData`
+returns its 6.19 s duration), so the voice is confirmed by codec, event and volume, and by ear on a
+phone.
 
 ## Rules for this fork
 
