@@ -136,9 +136,22 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   });
   // Local per-listener volume — everyone controls their own, unlike playback.
   const [volume, setVolume] = useState(1);
+  // The DJ's spoken blurb for this track boundary, and whether the music is
+  // currently ducked under it.
+  const [djSay, setDjSay] = useState<{
+    url: string;
+    at: number;
+    text?: string;
+    nick?: string;
+    videoId?: string;
+  } | null>(null);
+  const [ducking, setDucking] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // The DJ talks through its own element: nothing about a blurb is allowed to
+  // touch the room's clock or its sync loop.
+  const djAudioRef = useRef<HTMLAudioElement | null>(null);
   const offsetRef = useRef(0);
   const playbackRef = useRef({ startedAt: 0, pausedPosition: 0, isPlaying: false });
 
@@ -156,6 +169,9 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const volumeRef = useRef(1);
   const CROSSFADE_SECONDS = 5;
   const CROSSFADE_MIN_DURATION = 10;
+  // How far the music drops while the DJ is talking. Not zero: the host is
+  // talking *over* the song, not stopping it.
+  const DJ_DUCK = 0.15;
 
   // Fine sync. Below the tolerance, drift is left alone (the clock estimate
   // itself is only good to a few tens of ms); above it, playback speed is
@@ -233,13 +249,21 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     // programmatic `volume` — so mute has to set both, and it has to be applied
     // even while a crossfade owns the volume ramp below.
     const muted = volume === 0;
+    // The DJ's clip is its own element, and a listener's mute has to cover it
+    // too — a voice arriving from a room you muted is worse than no blurb.
+    const say = djAudioRef.current;
+    if (say) {
+      say.volume = Math.min(1, volume);
+      say.muted = muted;
+    }
     if (crossfadingRef.current) {
       el.muted = muted;
       return;
     }
-    el.volume = Math.min(1, volume * (current?.gain ?? 1));
+    // Ducking is not muting: the music is still there, out of the host's way.
+    el.volume = Math.min(1, volume * (current?.gain ?? 1) * (ducking ? DJ_DUCK : 1));
     el.muted = muted;
-  }, [volume, current?.videoId, current?.gain, activeSlot]);
+  }, [volume, current?.videoId, current?.gain, activeSlot, ducking]);
 
   // Read via refs inside the tick loop below, so adjusting the volume slider
   // or the queue doesn't restart the audio-sync effect (and with it, the
@@ -327,6 +351,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     socket.on(EVENTS.STATS_UPDATE, (s: { stats: RoomStats }) => setStats(s.stats));
     socket.on(EVENTS.MOOD_UPDATE, (s: { mood: Mood }) => setMood(s.mood));
     socket.on(EVENTS.DJ_TYPING, (s: { typing: boolean }) => setDjTyping(s.typing));
+    socket.on(EVENTS.DJ_SAY, (s: any) => setDjSay({ ...s }));
     socket.on(EVENTS.PLAYBACK_UPDATE, (s: any) => applyPlayback(s));
     socket.on(EVENTS.CHAT_NEW, (m: ChatMsg) => {
       setChat((c) => [...c.slice(-199), m]);
@@ -533,6 +558,54 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.videoId, isPlaying, preparing, activeSlot, shuffle, repeat]);
+
+  // The DJ's spoken blurb — a separate element on purpose. The room's clock and
+  // sync loop are untouched by it, so a slow render or a browser that refuses to
+  // play can cost the blurb and nothing else. `at` is on the server's clock, so
+  // everyone in the room starts the same clip at the same instant with the music
+  // ducked underneath.
+  useEffect(() => {
+    const el = djAudioRef.current;
+    if (!djSay || !el) return;
+    // Muted is muted. The line is already in the chat.
+    if (volumeRef.current === 0) return;
+    let cancelled = false;
+    const start = () => {
+      if (cancelled) return;
+      el.src = djSay.url;
+      el.volume = Math.min(1, volumeRef.current);
+      el.play()
+        .then(() => {
+          if (!cancelled) setDucking(true);
+        })
+        // Autoplay refused: the text in chat is the whole blurb's content, so
+        // there is nothing to apologise for and nothing to retry.
+        .catch(() => {});
+    };
+    const lead = djSay.at - serverNow();
+    const id = setTimeout(start, Math.max(0, lead));
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+      setDucking(false);
+    };
+  }, [djSay]);
+
+  // A skip lands a new track while the host is mid-sentence. The blurb was
+  // written for the old one, so it stops rather than talking over a song it is
+  // not describing.
+  useEffect(() => {
+    const el = djAudioRef.current;
+    if (!el || !djSay?.videoId || !current?.videoId) return;
+    if (djSay.videoId !== current.videoId) {
+      el.pause();
+      setDucking(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.videoId]);
 
   const resumeAudio = () => {
     const audio = activeSlot === "A" ? audioRef.current : nextAudioRef.current;
@@ -816,6 +889,14 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
         ref={nextAudioRef}
         onEnded={activeSlot === "B" ? onEnded : undefined}
         onError={activeSlot === "B" ? onAudioError : undefined}
+      />
+      {/* The host's voice. Its own element, its own volume, no bearing on the
+          room's clock. */}
+      <audio
+        ref={djAudioRef}
+        onEnded={() => setDucking(false)}
+        onPause={() => setDucking(false)}
+        onError={() => setDucking(false)}
       />
 
       <Reactions incoming={lastReaction} />
