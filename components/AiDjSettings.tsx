@@ -147,6 +147,14 @@ export default function AiDjSettings({
       aiDjEnabled: s.aiDjEnabled,
       personaId: s.personaId,
       djUseHistory: s.djUseHistory !== false,
+      // The voice and the cadence are part of this form, so they have to be part
+      // of this payload. They were not, and every save quietly reset whatever had
+      // been typed back to the stored value — the fields rendered, accepted a
+      // number and threw it away.
+      djVoiceProvider: s.djVoiceProvider,
+      djVoice: s.djVoice,
+      djPersonaVoices: s.djPersonaVoices,
+      djBlurbEvery: s.djBlurbEvery,
     };
     if (apiKey.trim()) payload.llmApiKey = apiKey.trim();
     const res = await fetch("/api/settings", {
