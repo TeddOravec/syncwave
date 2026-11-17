@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRoom } from "@/lib/rooms.mjs";
-import { composeBlurb, djEnabled } from "@/lib/dj.mjs";
+import { composeBlurb, blurbPrompt, djEnabled } from "@/lib/dj.mjs";
 import { synthesize, voiceEnabled, clipUrl } from "@/lib/djvoice.mjs";
 import { activeVoice } from "@/lib/settings.mjs";
 
@@ -22,6 +22,12 @@ export async function GET(req: NextRequest) {
   // A voice can be auditioned without a room at all — pick the voice first,
   // then worry about what it is going to say.
   const override = p.get("text");
+  // Read the prompt instead of running it: what the host is actually told, for
+  // tuning it. Cheap, no model call, safe against a live room.
+  if (p.get("prompt")) {
+    if (!room) return NextResponse.json({ error: "no_room" }, { status: 404 });
+    return NextResponse.json(blurbPrompt(room));
+  }
   if (!room && !override) {
     return NextResponse.json({ error: "no_room" }, { status: 404 });
   }
