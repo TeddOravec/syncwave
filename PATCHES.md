@@ -62,6 +62,14 @@ The first track after a process start speaks: a room that has just come up has n
 been quiet, and announcing is the friendlier guess. `djBlurbEvery` = 1 is the way to hear every boundary
 while tuning the writing.
 
+**Angles, not a script.** Each blurb gets three candidate angles (rotation, never the same as last time) and the
+host picks one or none: transition, a verified fact, the run of the day, a tease, the room, the people in the
+queue, a skip streak, a station ID, a liner. It also gets its own last three blurbs, so it cannot repeat a shape
+or an opening. Facts come from MusicBrainz — one MBID lookup for the real release groups, studio takes only, no
+compilations, album-or-nothing — and a blurb that states any other production detail is thrown away and retried
+once as a plain line, because a small model asked to sound interesting will name the wrong synthesizer with total
+confidence.
+
 What the host is told, all of it learned by shipping it wrong:
 
 - **The room's local time, not the container's.** The container runs UTC, so anything from a bare
