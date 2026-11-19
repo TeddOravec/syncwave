@@ -21,10 +21,10 @@ export type Track = {
   likes?: string[];
   votes?: string[];
   /**
-   * Which queue owns this track. A per-device id, so two people who picked the
-   * same nickname (or someone who renamed themselves) are still separate turns
-   * in a round-robin queue. Equal to `addedBy` for anything queued before the
-   * device id existed.
+   * Legacy: a per-device queue key tried for one evening and reverted. The
+   * rotation uses `addedBy` (the nickname) — a device id split one listener
+   * across a phone, a laptop and a stale tab, which made them three people in
+   * the queue. Only items queued that evening carry this field.
    */
   queuedBy?: string;
   status?: Status;

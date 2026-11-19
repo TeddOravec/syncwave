@@ -100,8 +100,6 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [aiDj, setAiDj] = useState<string | null>(null);
 
   const [you, setYou] = useState<string | null>(null);
-  /** This device's queue key — what a track's `queuedBy` is compared against. */
-  const [youKey, setYouKey] = useState<string | null>(null);
   const [current, setCurrent] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   // Holding the queue: the current track runs to its end, nothing new starts.
@@ -315,33 +313,13 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const doJoin = useCallback(() => {
     if (!nick.trim()) return;
     localStorage.setItem("sw_nick", nick.trim());
-    // A stable per-device id so the queue can tell two people apart across a
-    // reload, a rename, or two people who typed the same nickname. Nickname is
-    // still what the room shows; this is what the rotation counts.
-    let deviceId = "";
-    try {
-      const stored = localStorage.getItem("sw_device") || "";
-      deviceId = /^[A-Za-z0-9_-]{6,64}$/.test(stored) ? stored : "";
-      if (!deviceId) {
-        deviceId = (
-          typeof crypto !== "undefined" && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
-        ).replace(/[^A-Za-z0-9_-]/g, "");
-        localStorage.setItem("sw_device", deviceId);
-      }
-    } catch {
-      deviceId = "";
-    }
     const ownerToken =
       asHost && typeof window !== "undefined" ? localStorage.getItem(`sw_owner_${code}`) : null;
 
     const socket = io({ path: "/socket.io" });
     socketRef.current = socket;
 
-    socket.on("connect", () =>
-      socket.emit(EVENTS.JOIN, { code, nick: nick.trim(), ownerToken, deviceId })
-    );
+    socket.on("connect", () => socket.emit(EVENTS.JOIN, { code, nick: nick.trim(), ownerToken }));
     socket.on(EVENTS.ERROR, (e: { message: string }) => setError(e.message));
     socket.on(EVENTS.KICKED, () => setKicked(true));
     socket.on(EVENTS.JOIN_PENDING, () => setAwaitingApproval(true));
@@ -354,7 +332,6 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     );
     socket.on(EVENTS.ROOM_STATE, (s: any) => {
       setYou(s.you);
-      setYouKey(s.youKey ?? null);
       setRoomName(s.name || `Room ${code}`);
       setAiDj(s.aiDj ?? null);
       setQueue(s.queue);
@@ -1211,7 +1188,6 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                   dl={dl}
                   isHost={isHost}
                   you={nick.trim()}
-                  youKey={youKey}
                   queueMode={queueMode}
                   onRemove={removeTrack}
                   onLike={likeTrack}

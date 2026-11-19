@@ -35,7 +35,6 @@ function QueuePanel({
   dl,
   isHost,
   you,
-  youKey,
   queueMode,
   onRemove,
   onLike,
@@ -50,8 +49,6 @@ function QueuePanel({
   isHost: boolean;
   /** Your nickname — likes and votes are recorded against it. */
   you: string;
-  /** Your device's queue key, for "is this track mine". */
-  youKey: string | null;
   /** How the room is picking what plays next. */
   queueMode: "fifo" | "roundrobin";
   onRemove: (id: string) => void;
@@ -116,7 +113,7 @@ function QueuePanel({
             const id = t.id;
             // Round-robin turns order into a per-person thing, so your own
             // tracks are yours to arrange. In FIFO the host owns the order.
-            const mine = youKey ? t.queuedBy === youKey : t.addedBy === you;
+            const mine = t.addedBy === you;
             const canArrange = isHost || (queueMode === "roundrobin" && mine);
 
             return (
