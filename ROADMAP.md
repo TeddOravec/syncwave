@@ -25,7 +25,24 @@ list) are documented in the `syncwave-fork-ops` skill. This file is the *what* a
 
 ## 1. Queue model: per-person queues with round-robin playback  (the big one)
 
-**Symptom Tedd reports:** one person queues forty tracks by one artist; everyone else
+**Status: built and verified on dev, 2026-11-19.** `queueMode` per room, switchable from the
+button beside the pause control. New rooms start round-robin; rooms that existed before keep
+fifo until someone presses the button. Verified with three socket clients (A queues 3, B
+queues 2, C queues 1) in two rooms with different seat orders: both produced three distinct
+owners before any repeat. A first cut shipped a real bug and the dev test caught it — worth
+reading, because it is the shape of mistake this design invites:
+
+> The first version built the rotation from the owners that still had a track queued. Once
+> someone's only track played, they dropped out of the ring, so "who comes after them"
+> resolved to the head of the list and the next turn went straight back to whoever had just
+> played: A, C, A, B instead of A, C, B. **The ring must keep every owner, including one with
+> nothing waiting; they are skipped, not deleted.**
+
+Still open in this workstream: the queue panel shows one flat list, so a person cannot see at
+a glance where their own tracks sit in the rotation. Grouping the panel by owner (with the
+rotation order made visible) is the obvious next slice, and it is UI only.
+
+**Symptom Tedd reported:** one person queues forty tracks by one artist; everyone else
 waits forty tracks to hear theirs. Reordering can only move one row one place at a time,
 so spreading a batch out by hand is not possible.
 
@@ -70,14 +87,16 @@ Consequences to design honestly:
 - **`repeat: all`** re-pushes the finished track to the back with `addedBy` intact — it
   should keep its owner rather than becoming ownerless.
 
-**Open question — identity.** `addedBy` is a nickname typed at join. It is neither unique
-nor stable: a seat is keyed by socket id (`:931`) and only survives a reconnect by matching
-the nick string (`:922`). Round-robin needs something a person cannot accidentally shed:
-a `localStorage` device token minted on first join and sent with the join payload, mapped to
-the nick. That also fixes "I queued ten and my reload lost my turn".
+**Identity — settled, built.** `addedBy` is a nickname typed at join: neither unique nor
+stable (a seat is a socket id, `:1008`, carried over a reconnect by matching the nick string,
+`:1026`). Every track now carries a `queuedBy` key: a `localStorage` device id minted on
+first join and sent with the join payload, falling back to the nickname for anything queued
+before today and for the DJ, which has no device. `youKey` in `room:state` tells the client
+which rows are its own, so a person can reorder and remove their own tracks without the
+server having to trust a nickname.
 
 **Shape:** per-room switch `queueMode: "fifo" | "roundrobin"`, new rooms default
-round-robin, `WORK` flipped once Tedd has heard it. Upstream-PR shaped: **no**.
+round-robin, `WORK` left in fifo until Tedd flips it. Upstream-PR shaped: **no**.
 
 ---
 
@@ -176,10 +195,11 @@ upstreamable later if the maintainer ever engages.
 
 ## Order of work
 
-1. **§1 identity + round-robin behind `queueMode`** — dev, `WORK` room, listen to it with
-   more than one person before flipping the default.
-2. **§3 DJ autoplay** — cheap once §1 exists, because "does a human have anything waiting"
-   is already a question the rotation answers.
+1. ~~**§1 identity + round-robin behind `queueMode`**~~ — **done 2026-11-19** (dev, verified
+   with three clients). Next within it: group the queue panel by owner so the rotation is
+   visible, then flip `WORK` once Tedd has heard it.
+2. **§3 DJ autoplay** — cheap now, because "does a human have anything waiting" is already a
+   question the rotation answers.
 3. **§2 schedule** — independent of §1/§3, but land it after them so the boundary logic is
    only touched once.
 4. **§4** — probably never, if §1 does its job.
