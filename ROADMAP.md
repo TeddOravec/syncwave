@@ -87,13 +87,18 @@ Consequences to design honestly:
 - **`repeat: all`** re-pushes the finished track to the back with `addedBy` intact — it
   should keep its owner rather than becoming ownerless.
 
-**Identity — settled, built.** `addedBy` is a nickname typed at join: neither unique nor
-stable (a seat is a socket id, `:1008`, carried over a reconnect by matching the nick string,
-`:1026`). Every track now carries a `queuedBy` key: a `localStorage` device id minted on
-first join and sent with the join payload, falling back to the nickname for anything queued
-before today and for the DJ, which has no device. `youKey` in `room:state` tells the client
-which rows are its own, so a person can reorder and remove their own tracks without the
-server having to trust a nickname.
+**Identity — settled twice.** A per-device id (minted on first join, sent with `join`) was
+the first answer, on the theory that a nickname is neither unique nor stable. The live room
+disproved it inside an hour: one listener was a phone, a laptop and a tab that had not
+reloaded, and those are three different ids, so he became three heads in the rotation, his own
+queue played out of order, and the DJ's single track queued behind all of them. The room now
+rotates by **nickname**, which is what likes, votes and the host seat already use and what
+`sw_nick` in localStorage keeps across a reload. Two people who type the same name are one
+turn; nobody in this house does, and the alternative cost a real evening.
+
+A participant who never queues — the speaker client, `Speakers` — is in the ring and skipped
+every cycle. It is not a person and it must never be given a turn it can use; if it ever
+queues, it becomes an owner like anyone else, which is the honest reading.
 
 **Shape:** per-room switch `queueMode: "fifo" | "roundrobin"`, new rooms default
 round-robin, `WORK` left in fifo until Tedd flips it. Upstream-PR shaped: **no**.
