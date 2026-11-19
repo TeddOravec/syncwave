@@ -27,10 +27,12 @@ list) are documented in the `syncwave-fork-ops` skill. This file is the *what* a
 
 **Status: built and verified on dev, 2026-11-19.** `queueMode` per room, switchable from the
 button beside the pause control. New rooms start round-robin; rooms that existed before keep
-fifo until someone presses the button. Verified with three socket clients (A queues 3, B
-queues 2, C queues 1) in two rooms with different seat orders: both produced three distinct
-owners before any repeat. A first cut shipped a real bug and the dev test caught it — worth
-reading, because it is the shape of mistake this design invites:
+fifo until someone presses the button. Verified with socket clients in fresh rooms: three
+owners in two rooms with different seat orders (three distinct owners before any repeat both
+times), then four owners plus a participant who queues nothing — `A0, B3, C5, D6, A1, B4, A2`,
+each owner's own tracks in the order they queued them, the silent participant consuming no turn.
+Two real bugs came out of these runs and both are worth reading, because they are the shapes
+this design invites. The first:
 
 > The first version built the rotation from the owners that still had a track queued. Once
 > someone's only track played, they dropped out of the ring, so "who comes after them"
