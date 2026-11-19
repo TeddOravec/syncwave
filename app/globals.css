@@ -806,6 +806,9 @@ html { scroll-behavior: smooth; }
   justify-content: center;
   gap: 6px;
   border-radius: 999px;
+  /* An icon-only item (pause, queue mode) must be the same height as one with
+     a label, or a pill next to the tabs reads as a different component. */
+  min-height: 34px;
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
