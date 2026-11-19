@@ -35,6 +35,8 @@ function QueuePanel({
   dl,
   isHost,
   you,
+  youKey,
+  queueMode,
   onRemove,
   onLike,
   onVote,
@@ -48,6 +50,10 @@ function QueuePanel({
   isHost: boolean;
   /** Your nickname — likes and votes are recorded against it. */
   you: string;
+  /** Your device's queue key, for "is this track mine". */
+  youKey: string | null;
+  /** How the room is picking what plays next. */
+  queueMode: "fifo" | "roundrobin";
   onRemove: (id: string) => void;
   onLike: (id: string) => void;
   onVote: (id: string) => void;
@@ -108,6 +114,10 @@ function QueuePanel({
             const liked = (t.likes ?? []).includes(you);
             const voted = (t.votes ?? []).includes(you);
             const id = t.id;
+            // Round-robin turns order into a per-person thing, so your own
+            // tracks are yours to arrange. In FIFO the host owns the order.
+            const mine = youKey ? t.queuedBy === youKey : t.addedBy === you;
+            const canArrange = isHost || (queueMode === "roundrobin" && mine);
 
             return (
               <TrackRow
@@ -124,7 +134,7 @@ function QueuePanel({
                 dragging={state.activeKey === key}
                 shift={exiting ? 0 : shiftFor(i)}
                 dragHandle={
-                  isHost && !exiting ? (
+                  canArrange && !exiting ? (
                     <DragHandle
                       onPointerDown={(e) => start(e, key, i, queue.length)}
                       onPointerMove={move}
@@ -177,7 +187,7 @@ function QueuePanel({
                   </>
                 }
                 actions={
-                  isHost && id ? (
+                  canArrange && id ? (
                     <RowAction label={`Remove ${t.title}`} tone="danger" onClick={() => onRemove(id)}>
                       <X className="size-3.5" />
                     </RowAction>

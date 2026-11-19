@@ -20,6 +20,13 @@ export type Track = {
   /** Nicknames — the identity model here is the name you typed on the way in. */
   likes?: string[];
   votes?: string[];
+  /**
+   * Which queue owns this track. A per-device id, so two people who picked the
+   * same nickname (or someone who renamed themselves) are still separate turns
+   * in a round-robin queue. Equal to `addedBy` for anything queued before the
+   * device id existed.
+   */
+  queuedBy?: string;
   status?: Status;
   /** Loudness-normalization multiplier (linear), applied client-side. 1 or absent = no change. */
   gain?: number;
@@ -68,7 +75,8 @@ export type SystemKind =
   | "error"
   | "kicked"
   | "paused"
-  | "resumed";
+  | "resumed"
+  | "queuemode";
 
 export type ChatMsg = {
   id: string;

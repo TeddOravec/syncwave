@@ -7,6 +7,7 @@ import {
   Headphones,
   Heart,
   ListPlus,
+  ListOrdered,
   LogIn,
   LogOut,
   Music,
@@ -47,6 +48,7 @@ const ICON: Record<SystemKind | "generic" | "reaction", ElementType> = {
   kicked: UserX,
   paused: Pause,
   resumed: Play,
+  queuemode: ListOrdered,
   reaction: Heart,
   generic: ActivityIcon,
 };
@@ -63,6 +65,7 @@ const TONE: Record<SystemKind | "generic" | "reaction", string> = {
   kicked: "text-[var(--destructive)] bg-[color-mix(in_oklab,var(--destructive)_14%,transparent)]",
   paused: "text-ink-soft bg-white/8",
   resumed: "text-[var(--accent-2)] bg-[color-mix(in_oklab,var(--accent)_16%,transparent)]",
+  queuemode: "text-ink-soft bg-white/8",
   reaction: "text-[var(--accent-3)] bg-[color-mix(in_oklab,var(--accent-3)_14%,transparent)]",
   generic: "text-muted bg-white/5",
 };

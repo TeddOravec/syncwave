@@ -10,6 +10,7 @@ import {
   History as HistoryIcon,
   Keyboard,
   ListMusic,
+  ListOrdered,
   MessageSquare,
   Pause,
   Play,
@@ -99,6 +100,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [aiDj, setAiDj] = useState<string | null>(null);
 
   const [you, setYou] = useState<string | null>(null);
+  /** This device's queue key — what a track's `queuedBy` is compared against. */
+  const [youKey, setYouKey] = useState<string | null>(null);
   const [current, setCurrent] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   // Holding the queue: the current track runs to its end, nothing new starts.
@@ -121,6 +124,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [needsGesture, setNeedsGesture] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<Repeat>("off");
+  /** "fifo" = first come, first served; "roundrobin" = a turn per person. */
+  const [queueMode, setQueueMode] = useState<"fifo" | "roundrobin">("fifo");
   const [dl, setDl] = useState<Record<string, number>>({});
   const [tab, setTab] = useState<Tab>("now");
   const [center, setCenter] = useState<CenterView>("queue");
@@ -300,6 +305,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     setPreparing(Boolean(s.preparing));
     setShuffle(Boolean(s.shuffle));
     if (s.repeat) setRepeat(s.repeat);
+    if (s.queueMode) setQueueMode(s.queueMode === "roundrobin" ? "roundrobin" : "fifo");
     setSkipVotes(s.skipVotes ?? 0);
     if (typeof s.serverNow === "number" && offsetRef.current === 0) {
       offsetRef.current = s.serverNow - Date.now();
@@ -309,13 +315,33 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const doJoin = useCallback(() => {
     if (!nick.trim()) return;
     localStorage.setItem("sw_nick", nick.trim());
+    // A stable per-device id so the queue can tell two people apart across a
+    // reload, a rename, or two people who typed the same nickname. Nickname is
+    // still what the room shows; this is what the rotation counts.
+    let deviceId = "";
+    try {
+      const stored = localStorage.getItem("sw_device") || "";
+      deviceId = /^[A-Za-z0-9_-]{6,64}$/.test(stored) ? stored : "";
+      if (!deviceId) {
+        deviceId = (
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+        ).replace(/[^A-Za-z0-9_-]/g, "");
+        localStorage.setItem("sw_device", deviceId);
+      }
+    } catch {
+      deviceId = "";
+    }
     const ownerToken =
       asHost && typeof window !== "undefined" ? localStorage.getItem(`sw_owner_${code}`) : null;
 
     const socket = io({ path: "/socket.io" });
     socketRef.current = socket;
 
-    socket.on("connect", () => socket.emit(EVENTS.JOIN, { code, nick: nick.trim(), ownerToken }));
+    socket.on("connect", () =>
+      socket.emit(EVENTS.JOIN, { code, nick: nick.trim(), ownerToken, deviceId })
+    );
     socket.on(EVENTS.ERROR, (e: { message: string }) => setError(e.message));
     socket.on(EVENTS.KICKED, () => setKicked(true));
     socket.on(EVENTS.JOIN_PENDING, () => setAwaitingApproval(true));
@@ -328,6 +354,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     );
     socket.on(EVENTS.ROOM_STATE, (s: any) => {
       setYou(s.you);
+      setYouKey(s.youKey ?? null);
       setRoomName(s.name || `Room ${code}`);
       setAiDj(s.aiDj ?? null);
       setQueue(s.queue);
@@ -1122,24 +1149,54 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                 center !== "queue" || queue.length > 0 ? "min-h-0 flex-1" : "shrink-0"
               )}
             >
-              {/* Pause lives beside the tabs so the room can be held overnight
-                  with its queue intact — and it is available to everyone, not
-                  just the host, because a shared room is cooperative. */}
+              {/* Pause and the queue mode are the room's two cooperative
+                  controls: available to everyone, not just the host, because a
+                  shared room is cooperative. They wear the same pill as the
+                  tabs beside them rather than floating as bare icons. */}
               <div className="mb-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={playPause}
-                  aria-label={holdQueue ? `Paused by ${holdBy || "someone"} — resume` : "Pause after this track"}
-                  title={
-                    holdQueue
-                      ? `Paused by ${holdBy || "someone"} — the queue is held. Press to resume.`
-                      : "Pause after this track (it finishes first; nothing new queues)"
-                  }
-                  data-held={holdQueue || undefined}
-                  className="sw-seg-item shrink-0"
-                >
-                  {holdQueue ? <Play className="size-4" /> : <Pause className="size-4" />}
-                </button>
+                <div className="sw-seg shrink-0">
+                  <button
+                    type="button"
+                    onClick={playPause}
+                    aria-label={holdQueue ? `Paused by ${holdBy || "someone"} — resume` : "Pause after this track"}
+                    title={
+                      holdQueue
+                        ? `Paused by ${holdBy || "someone"} — the queue is held. Press to resume.`
+                        : "Pause after this track (it finishes first; nothing new queues)"
+                    }
+                    data-held={holdQueue || undefined}
+                    className="sw-seg-item flex-none"
+                  >
+                    {holdQueue ? <Play className="size-4" /> : <Pause className="size-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      emit(EVENTS.QUEUE_MODE, {
+                        mode: queueMode === "roundrobin" ? "fifo" : "roundrobin",
+                      })
+                    }
+                    aria-pressed={queueMode === "roundrobin"}
+                    aria-label={
+                      queueMode === "roundrobin"
+                        ? "Queue mode: everyone gets a turn. Switch to first come, first served."
+                        : "Queue mode: first come, first served. Switch to everyone gets a turn."
+                    }
+                    title={
+                      queueMode === "roundrobin"
+                        ? "Everyone gets a turn — the queue rotates one track per person. Press for first come, first served."
+                        : "First come, first served — whoever queued first plays first. Press for a turn per person."
+                    }
+                    data-active={queueMode === "roundrobin" || undefined}
+                    className="sw-seg-item flex-none"
+                  >
+                    {queueMode === "roundrobin" ? (
+                      <Users className="size-4" />
+                    ) : (
+                      <ListOrdered className="size-4" />
+                    )}
+                  </button>
+                </div>
                 <CenterTabs
                   view={center}
                   setView={setCenter}
@@ -1154,6 +1211,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                   dl={dl}
                   isHost={isHost}
                   you={nick.trim()}
+                  youKey={youKey}
+                  queueMode={queueMode}
                   onRemove={removeTrack}
                   onLike={likeTrack}
                   onVote={voteTrack}
