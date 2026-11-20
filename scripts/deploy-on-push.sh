@@ -23,6 +23,10 @@ DEV=${DEV:-/opt/syncwave-dev}
 STATE=${STATE:-/opt/syncwave-deploy}
 HEALTH=${HEALTH:-http://127.0.0.1:3000/api/health}
 WAIT_SECONDS=${WAIT_SECONDS:-1200}
+# A commit younger than this is not deployed yet: a burst of pushes should cost
+# one restart, not one per push. The room restarts at the next track boundary,
+# and hearing that three times in ten minutes reads as a broken room.
+SETTLE_SECONDS=${SETTLE_SECONDS:-120}
 
 mkdir -p "$STATE" || exit 1
 LOG=$STATE/deploy.log
@@ -106,13 +110,35 @@ fi
 DEADLINE=$(( $(date +%s) + WAIT_SECONDS ))
 waited=0
 lastHealth=0
+ticks=0
 while :; do
+  ticks=$((ticks + 1))
+  now=$(date +%s)
+
+  # Let the commit settle, so pushing five times in five minutes is one deploy.
+  AGE=$(( now - $(git log -1 --format=%ct "$REMOTE" 2>/dev/null || echo 0) ))
+  if [ "$AGE" -lt "$SETTLE_SECONDS" ]; then
+    sleep 3
+    continue
+  fi
+
+  # Someone pushed while we were waiting: drop this one and build the newest
+  # next tick, instead of restarting the room twice for two commits.
+  if [ $((ticks % 10)) -eq 0 ]; then
+    if git fetch -q fork 2>/dev/null; then
+      TIP=$(git rev-parse fork/tandy 2>/dev/null)
+      if [ -n "$TIP" ] && [ "$TIP" != "$REMOTE" ]; then
+        say "newer commit ${TIP:0:7} arrived while waiting — will rebuild"
+        exit 0
+      fi
+    fi
+  fi
+
   if docker logs --since 5s syncwave 2>&1 | grep -q '\[dj\] boundary'; then
     say "boundary — deploying (${waited}s in)"
     break
   fi
 
-  now=$(date +%s)
   if [ $((now - lastHealth)) -ge 2 ]; then
     lastHealth=$now
     BODY=$(curl -fsS -m 5 "$HEALTH" 2>/dev/null) || BODY=""
