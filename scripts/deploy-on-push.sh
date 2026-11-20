@@ -95,33 +95,47 @@ if [ "$PENDING" != "$REMOTE" ]; then
 fi
 
 # ---- wait for a quiet moment ------------------------------------------------
-# A recreate is instant but it drops `current`, so the track that was playing
-# restarts from zero. `playing` from /api/health is the whole test.
+# Two independent signals, because either one alone has a hole:
+#
+#  * health says nothing is audible, or nobody is listening. A room with zero
+#    listeners can sit "playing" for a whole track — it only advances when a
+#    client reports the end — so waiting on `playing` alone can hold forever.
+#  * the `[dj] boundary` log line, which fires at every track change. Sampling
+#    `playing` every couple of seconds MISSES a boundary when the next track is
+#    already cached: the room is only not-playing for a few hundred ms.
 DEADLINE=$(( $(date +%s) + WAIT_SECONDS ))
 waited=0
+lastHealth=0
 while :; do
-  BODY=$(curl -fsS -m 5 "$HEALTH" 2>/dev/null) || BODY=""
-  if [ -z "$BODY" ]; then
-    # Health unreachable means the app is already down: deploying cannot make
-    # a song skip, and it is the fastest way back.
-    say "health unreachable — deploying"
+  if docker logs --since 5s syncwave 2>&1 | grep -q '\[dj\] boundary'; then
+    say "boundary — deploying (${waited}s in)"
     break
   fi
-  PLAYING=$(printf '%s' "$BODY" | sed -n 's/.*"playing":\([0-9][0-9]*\).*/\1/p')
-  LISTENERS=$(printf '%s' "$BODY" | sed -n 's/.*"listeners":\([0-9][0-9]*\).*/\1/p')
-  # Nothing audible, OR nobody there to hear it. A room can sit "playing" with
-  # zero listeners for as long as a track lasts — it only advances when a client
-  # reports the end — and waiting that out would hold a deploy for no one.
-  if [ "${PLAYING:-0}" = "0" ] || [ "${LISTENERS:-0}" = "0" ]; then
-    say "quiet moment (${waited}s, playing=${PLAYING:-?}, listeners=${LISTENERS:-?}) — deploying"
-    break
+
+  now=$(date +%s)
+  if [ $((now - lastHealth)) -ge 2 ]; then
+    lastHealth=$now
+    BODY=$(curl -fsS -m 5 "$HEALTH" 2>/dev/null) || BODY=""
+    if [ -z "$BODY" ]; then
+      # Health unreachable means the app is already down: deploying cannot make
+      # a song skip, and it is the fastest way back.
+      say "health unreachable — deploying"
+      break
+    fi
+    PLAYING=$(printf '%s' "$BODY" | sed -n 's/.*"playing":\([0-9][0-9]*\).*/\1/p')
+    LISTENERS=$(printf '%s' "$BODY" | sed -n 's/.*"listeners":\([0-9][0-9]*\).*/\1/p')
+    if [ "${PLAYING:-0}" = "0" ] || [ "${LISTENERS:-0}" = "0" ]; then
+      say "quiet (playing=${PLAYING:-?}, listeners=${LISTENERS:-?}) — deploying"
+      break
+    fi
   fi
-  if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+
+  if [ "$now" -ge "$DEADLINE" ]; then
     say "still playing after ${WAIT_SECONDS}s — built, not deployed; next tick keeps waiting"
     exit 0
   fi
-  sleep 2
-  waited=$((waited + 2))
+  sleep 1
+  waited=$((waited + 1))
 done
 
 # ---- recreate ---------------------------------------------------------------
