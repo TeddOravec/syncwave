@@ -217,6 +217,27 @@ upstreamable later if the maintainer ever engages.
    only touched once.
 4. **§4** — probably never, if §1 does its job.
 
+## How it deploys (since 2026-11-20)
+
+Push to `tandy` and it ships itself: `scripts/deploy-on-push.sh`, run by
+`syncwave-deploy.timer` on the CT every two minutes.
+
+1. **dev** follows the branch immediately and rebuilds — it is the test instance and has
+   nobody's song to interrupt. It only rebuilds when the SHA actually moved.
+2. **live** fetches, merges `--ff-only`, and builds straight away (building disturbs nothing).
+3. The recreate waits for the first moment `/api/health` reports `playing: 0`, because a
+   recreate drops `current` and the track restarts from zero. 20-minute ceiling; if the room
+   never goes quiet the commit stays `pending` and the next tick resumes waiting.
+4. A build that fails is recorded in `failed-sha` and not retried until a newer commit — a
+   broken commit cannot spin the CT forever.
+
+State and the append-only log live in `/opt/syncwave-deploy/` (`pending`, `failed-sha`,
+`deploy.log`). A merge that cannot fast-forward (local change in the checkout) is reported and
+never forced: the running container is left alone.
+
+`/api/health` carrying `{rooms, playing, listeners}` is what makes step 3 honest — no log
+grepping, no guessing whether a long track is playing.
+
 ## Things that will bite regardless
 
 - A deploy does not reach an already-open tab; `/api/health` build-id reload is the only
