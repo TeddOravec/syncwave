@@ -91,6 +91,9 @@ Consequences to design honestly:
   rotation.
 - **`repeat: all`** re-pushes the finished track to the back with `addedBy` intact — it
   should keep its owner rather than becoming ownerless.
+- **Sitting out is per person, not per track** (`room.rrOut`): a listener's queued tracks stay
+  queued and are skipped while they are out, and resume in their own order when they flip back.
+  The projection honours it, or the panel would promise tracks the player will not take.
 
 **Identity — settled twice.** A per-device id (minted on first join, sent with `join`) was
 the first answer, on the theory that a nickname is neither unique nor stable. The live room
