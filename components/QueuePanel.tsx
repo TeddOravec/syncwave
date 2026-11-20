@@ -9,6 +9,7 @@ import {
   ListMusic,
   Loader2,
   Search as SearchIcon,
+  User,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -38,6 +39,8 @@ function QueuePanel({
   you,
   queueMode,
   order,
+  onlyMine,
+  onToggleOnlyMine,
   onRemove,
   onLike,
   onVote,
@@ -55,6 +58,9 @@ function QueuePanel({
   queueMode: "fifo" | "roundrobin";
   /** The queue in playing order (ids). Empty when there is no order to promise. */
   order: string[];
+  /** The panel is filtered to this listener's own tracks. */
+  onlyMine: boolean;
+  onToggleOnlyMine: () => void;
   onRemove: (id: string) => void;
   onLike: (id: string) => void;
   onVote: (id: string) => void;
@@ -64,9 +70,6 @@ function QueuePanel({
   onArtistClick: (artist: string) => void;
   className?: string;
 }) {
-  const totalSec = queue.reduce((n, t) => n + (t.duration || 0), 0);
-  const mins = Math.round(totalSec / 60);
-
   // One clock for the whole list rather than a timer per row.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -98,39 +101,50 @@ function QueuePanel({
     return out;
   }, [ordered]);
 
+  // "Only mine" is a view, not a mode: same list, same order, filtered to the
+  // tracks this nickname owns — which is exactly the set a person is allowed to
+  // rearrange. Nothing about playback changes while it is on.
+  const visible = useMemo(
+    () => (onlyMine ? ordered.filter((t) => (t.addedBy || "") === you) : ordered),
+    [ordered, onlyMine, you]
+  );
+  const visibleMins = Math.round(visible.reduce((n, t) => n + (t.duration || 0), 0) / 60);
+
   /** Drop targets are ids, not indexes — see the note on ordered above. */
   const dropAt = useCallback(
     (key: string, toIndex: number) => {
-      const from = ordered.findIndex((t) => keyOf(t) === key);
-      const target = toIndex > from ? ordered[toIndex + 1] : ordered[toIndex];
+      const from = visible.findIndex((t) => keyOf(t) === key);
+      const target = toIndex > from ? visible[toIndex + 1] : visible[toIndex];
       onReorder(key, target?.id ?? null);
     },
-    [ordered, onReorder]
+    [visible, onReorder]
   );
 
-  const rows = useListTransition(ordered, keyOf);
+  const rows = useListTransition(visible, keyOf);
   const { state, start, move, end, shiftFor } = useReorder(dropAt);
 
-  const indexOf = useCallback((key: string) => ordered.findIndex((t) => keyOf(t) === key), [ordered]);
+  const indexOf = useCallback((key: string) => visible.findIndex((t) => keyOf(t) === key), [visible]);
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
       <SectionHeader
         icon={<ListMusic className="size-3.5" />}
-        title="Up next"
+        title={onlyMine ? "Your queue" : "Up next"}
         trailing={
-          queue.length > 0 ? (
+          visible.length > 0 ? (
             <span className="text-[11px] text-muted">
-              {queue.length} {queue.length === 1 ? "track" : "tracks"}
-              {mins > 0 ? ` · ${mins} min` : ""}
+              {visible.length} {visible.length === 1 ? "track" : "tracks"}
+              {visibleMins > 0 ? ` · ${visibleMins} min` : ""}
             </span>
           ) : undefined
         }
       />
 
-      {queueMode === "roundrobin" && turns.length > 1 ? (
-        <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          {turns.map((turn, i) => (
+      {queue.length > 0 ? (
+        <div className="mb-2 flex items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
+            {queueMode === "roundrobin" && turns.length > 1
+              ? turns.map((turn, i) => (
             <span
               key={turn.owner}
               title={
@@ -149,18 +163,45 @@ function QueuePanel({
               <span className="max-w-[7rem] truncate">{turn.owner}</span>
               <span className="tabular-nums">{turn.count}</span>
             </span>
-          ))}
+                ))
+              : null}
+          </div>
+          {/* Filter, not a mode: same list, your tracks only, in your order. */}
+          <button
+            type="button"
+            onClick={onToggleOnlyMine}
+            aria-pressed={onlyMine}
+            data-active={onlyMine || undefined}
+            title={
+              onlyMine
+                ? "Showing only your tracks — press for the whole queue"
+                : "Show only your tracks, to rearrange your own queue"
+            }
+            className={cn(
+              "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
+              onlyMine
+                ? "border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-ink"
+                : "border-[var(--soft-border)] bg-white/4 text-muted hover:text-ink"
+            )}
+          >
+            <User className="size-3" />
+            Mine
+          </button>
         </div>
       ) : null}
 
-      {queue.length === 0 ? (
+      {visible.length === 0 ? (
         // Compact on purpose: an empty queue hands its height to the
         // suggestions below it rather than filling the column with a notice.
         <EmptyState
           compact
           icon={<ListMusic className="size-5" />}
-          title="The queue is empty"
-          hint="Anyone in the room can add a track."
+          title={onlyMine ? "Nothing of yours is queued" : "The queue is empty"}
+          hint={
+            onlyMine
+              ? "Add a track and it lands at the end of your own queue."
+              : "Anyone in the room can add a track."
+          }
           action={
             <Button variant="secondary" size="sm" onClick={onOpenSearch} className="gap-1.5">
               <SearchIcon className="size-3.5" /> Find a song
@@ -196,7 +237,7 @@ function QueuePanel({
                 dragHandle={
                   canArrange && !exiting ? (
                     <DragHandle
-                      onPointerDown={(e) => start(e, key, i, ordered.length)}
+                      onPointerDown={(e) => start(e, key, i, visible.length)}
                       onPointerMove={move}
                       onPointerUp={end}
                       onPointerCancel={end}
@@ -208,7 +249,7 @@ function QueuePanel({
                           e.preventDefault();
                           dropAt(key, i - 1);
                         }
-                        if (e.key === "ArrowDown" && i < ordered.length - 1) {
+                        if (e.key === "ArrowDown" && i < visible.length - 1) {
                           e.preventDefault();
                           dropAt(key, i + 1);
                         }

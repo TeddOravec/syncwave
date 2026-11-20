@@ -110,6 +110,9 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   /** The queue in the order it will play (ids from the server). Empty when
    *  there is no order to promise: first-come mode, or shuffle. */
   const [queueOrder, setQueueOrder] = useState<string[]>([]);
+  /** Panel view: only this listener's own tracks. Session-only on purpose —
+   *  a filter left on across a reload reads as "the queue is nearly empty". */
+  const [onlyMine, setOnlyMine] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -707,6 +710,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     [emit]
   );
   const removeTrack = useCallback((id: string) => emit(EVENTS.QUEUE_REMOVE, { id }), [emit]);
+  const toggleOnlyMine = useCallback(() => setOnlyMine((v) => !v), []);
   const muteParticipant = useCallback(
     (id: string, muted: boolean) => emit(EVENTS.HOST_MUTE, { id, muted }),
     [emit]
@@ -1200,6 +1204,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                   you={nick.trim()}
                   queueMode={queueMode}
                   order={queueOrder}
+                  onlyMine={onlyMine}
+                  onToggleOnlyMine={toggleOnlyMine}
                   onRemove={removeTrack}
                   onLike={likeTrack}
                   onVote={voteTrack}
