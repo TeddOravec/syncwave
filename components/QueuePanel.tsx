@@ -260,11 +260,15 @@ function QueuePanel({
             // tracks are yours to arrange. In FIFO the host owns the order.
             const mine = t.addedBy === you;
             const canArrange = isHost || (queueMode === "roundrobin" && mine);
+            // Queued, but its owner is sitting this round out: it stays visible
+            // and recedes — no position number, because it has no turn yet.
+            const parked = rrOut.includes(t.addedBy || "");
 
             return (
               <TrackRow
                 key={key}
-                index={exiting ? undefined : i + 1}
+                index={exiting || parked ? undefined : i + 1}
+                muted={parked}
                 art={t.thumbnail}
                 title={t.title}
                 artist={t.artist}
