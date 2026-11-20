@@ -113,6 +113,8 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   /** Panel view: only this listener's own tracks. Session-only on purpose —
    *  a filter left on across a reload reads as "the queue is nearly empty". */
   const [onlyMine, setOnlyMine] = useState(false);
+  /** Nicks sitting this round out — they keep their tracks, they just wait. */
+  const [rrOut, setRrOut] = useState<string[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -308,6 +310,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     setHoldBy(s.holdBy || null);
     setPreparing(Boolean(s.preparing));
     setShuffle(Boolean(s.shuffle));
+    if (Array.isArray(s.rrOut)) setRrOut(s.rrOut);
     if (s.repeat) setRepeat(s.repeat);
     if (s.queueMode) setQueueMode(s.queueMode === "roundrobin" ? "roundrobin" : "fifo");
     setSkipVotes(s.skipVotes ?? 0);
@@ -711,6 +714,11 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   );
   const removeTrack = useCallback((id: string) => emit(EVENTS.QUEUE_REMOVE, { id }), [emit]);
   const toggleOnlyMine = useCallback(() => setOnlyMine((v) => !v), []);
+  const inRotation = !rrOut.includes(nick.trim());
+  const toggleRotation = useCallback(
+    () => emit(EVENTS.QUEUE_ROTATE, { inRotation: !inRotation }),
+    [emit, inRotation]
+  );
   const muteParticipant = useCallback(
     (id: string, muted: boolean) => emit(EVENTS.HOST_MUTE, { id, muted }),
     [emit]
@@ -1206,6 +1214,9 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                   order={queueOrder}
                   onlyMine={onlyMine}
                   onToggleOnlyMine={toggleOnlyMine}
+                  rrOut={rrOut}
+                  inRotation={inRotation}
+                  onToggleRotation={toggleRotation}
                   onRemove={removeTrack}
                   onLike={likeTrack}
                   onVote={voteTrack}

@@ -8,6 +8,7 @@ import {
   Heart,
   ListMusic,
   Loader2,
+  Repeat,
   Search as SearchIcon,
   User,
   X,
@@ -41,6 +42,9 @@ function QueuePanel({
   order,
   onlyMine,
   onToggleOnlyMine,
+  rrOut,
+  inRotation,
+  onToggleRotation,
   onRemove,
   onLike,
   onVote,
@@ -61,6 +65,11 @@ function QueuePanel({
   /** The panel is filtered to this listener's own tracks. */
   onlyMine: boolean;
   onToggleOnlyMine: () => void;
+  /** Nicks sitting this round out — their tracks wait, they are not skipped for good. */
+  rrOut: string[];
+  /** Whether this listener's own tracks are taking turns right now. */
+  inRotation: boolean;
+  onToggleRotation: () => void;
   onRemove: (id: string) => void;
   onLike: (id: string) => void;
   onVote: (id: string) => void;
@@ -160,7 +169,14 @@ function QueuePanel({
               )}
             >
               <Avatar name={turn.owner} size="sm" />
-              <span className="max-w-[7rem] truncate">{turn.owner}</span>
+              <span
+                className={cn(
+                  "max-w-[7rem] truncate",
+                  rrOut.includes(turn.owner) && "opacity-50 line-through decoration-1"
+                )}
+              >
+                {turn.owner}
+              </span>
               <span className="tabular-nums">{turn.count}</span>
             </span>
                 ))
@@ -187,6 +203,31 @@ function QueuePanel({
             <User className="size-3" />
             Mine
           </button>
+
+          {/* In or out of the rotation. Your tracks stay queued either way —
+              this is "not my turn tonight", not "forget my queue". */}
+          {queueMode === "roundrobin" ? (
+            <button
+              type="button"
+              onClick={onToggleRotation}
+              aria-pressed={inRotation}
+              data-active={inRotation || undefined}
+              title={
+                inRotation
+                  ? "Your tracks are taking turns — press to sit the round out (they stay queued)"
+                  : "You are sitting the rotation out — press to put your tracks back in"
+              }
+              className={cn(
+                "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
+                inRotation
+                  ? "border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-ink"
+                  : "border-[var(--soft-border)] bg-white/4 text-muted hover:text-ink"
+              )}
+            >
+              <Repeat className="size-3" />
+              {inRotation ? "In rotation" : "Sitting out"}
+            </button>
+          ) : null}
         </div>
       ) : null}
 
