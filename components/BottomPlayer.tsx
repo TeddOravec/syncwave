@@ -19,6 +19,7 @@ import { REACTIONS } from "@/lib/protocol.mjs";
 import { cn } from "@/lib/cn";
 import type { Repeat as RepeatMode, Track } from "@/lib/types";
 import { CountButton, Cover } from "@/components/ui/track-row";
+import { Avatar } from "@/components/ui/avatar";
 
 function fmt(s: number) {
   if (!Number.isFinite(s) || s < 0) s = 0;
@@ -32,7 +33,7 @@ export default function BottomPlayer({
   isPlaying,
   position,
   duration,
-  isHost,
+  canControl,
   downloadPct,
   buffering,
   preparing,
@@ -61,7 +62,8 @@ export default function BottomPlayer({
   isPlaying: boolean;
   position: number;
   duration: number;
-  isHost: boolean;
+  /** The room is cooperative: any seated listener may run the transport. */
+  canControl: boolean;
   downloadPct: number | null;
   buffering: boolean;
   preparing: boolean;
@@ -92,7 +94,7 @@ export default function BottomPlayer({
   const cachePct = downloadPct ?? 0;
   const playPct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const loading = preparing || buffering;
-  const canSeek = isHost && dur > 0 && !preparing;
+  const canSeek = canControl && dur > 0 && !preparing;
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!canSeek) return;
@@ -155,6 +157,12 @@ export default function BottomPlayer({
             >
               {status ?? "Add a song to start"}
             </div>
+            {current?.addedBy ? (
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+                <Avatar name={current.addedBy} size="xs" />
+                <span className="truncate">queued by {current.addedBy}</span>
+              </div>
+            ) : null}
           </div>
           {current && (
             <CountButton
@@ -171,60 +179,59 @@ export default function BottomPlayer({
         {/* ── centre: transport + scrubber ── */}
         <div className="order-3 col-span-2 flex flex-col items-center gap-1 md:order-none md:col-span-1 md:w-[min(46vw,560px)] md:gap-2">
           <div className="flex items-center gap-2 sm:gap-3">
-            <IconToggle active={shuffle} disabled={!isHost} onClick={onShuffle} label="Shuffle">
+            <IconToggle active={shuffle} disabled={!canControl} onClick={onShuffle} label="Shuffle">
               <Shuffle className="size-4" />
             </IconToggle>
 
-            {isHost ? (
-              <button
-                onClick={onPlayPause}
-                disabled={preparing || !current}
-                className={cn(
-                  "grid size-11 place-items-center rounded-full text-white md:size-12",
-                  "bg-[image:linear-gradient(135deg,var(--art-1),var(--art-2))]",
-                  "shadow-[0_8px_28px_-8px_var(--art-1)]",
-                  "transition-[transform,box-shadow,opacity] duration-200 ease-[var(--ease)]",
-                  "hover:scale-105 hover:shadow-[0_10px_36px_-8px_var(--art-1)] active:scale-95",
-                  "disabled:opacity-30 disabled:hover:scale-100"
-                )}
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? (
-                  <Pause className="size-5" fill="currentColor" />
-                ) : (
-                  <Play className="size-5 translate-x-px" fill="currentColor" />
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={onVoteSkip}
-                disabled={!current}
-                className="flex h-11 items-center gap-2 rounded-full border border-white/15 px-5 md:h-12 text-sm font-semibold text-ink/85 transition-[background-color,border-color,transform] duration-200 ease-[var(--ease)] hover:-translate-y-px hover:bg-white/10 active:translate-y-0 disabled:opacity-30"
-                aria-label="Vote to skip"
-                title="Vote to skip this track"
-              >
-                <SkipForward className="size-4" />
-                <span className="font-mono text-xs tabular-nums">
-                  {skipVotes}/{needVotes}
-                </span>
-              </button>
-            )}
+            {/* The room is cooperative: there is no host to hand the remote to,
+                so every seated listener gets the transport. */}
+            <button
+              onClick={onPlayPause}
+              disabled={preparing || !current}
+              className={cn(
+                "grid size-11 place-items-center rounded-full text-white md:size-12",
+                "bg-[image:linear-gradient(135deg,var(--art-1),var(--art-2))]",
+                "shadow-[0_8px_28px_-8px_var(--art-1)]",
+                "transition-[transform,box-shadow,opacity] duration-200 ease-[var(--ease)]",
+                "hover:scale-105 hover:shadow-[0_10px_36px_-8px_var(--art-1)] active:scale-95",
+                "disabled:opacity-30 disabled:hover:scale-100"
+              )}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <Pause className="size-5" fill="currentColor" />
+              ) : (
+                <Play className="size-5 translate-x-px" fill="currentColor" />
+              )}
+            </button>
 
-            {isHost && (
-              <button
-                onClick={onSkip}
-                disabled={!current}
-                className="grid size-9 place-items-center rounded-full text-ink/70 transition-[background-color,color,transform] duration-200 ease-[var(--ease)] hover:bg-white/10 hover:text-ink active:scale-95 disabled:opacity-30"
-                aria-label="Next track"
-                title="Next track"
-              >
-                <SkipForward className="size-4" />
-              </button>
-            )}
+            <button
+              onClick={onSkip}
+              disabled={!current}
+              className="grid size-9 place-items-center rounded-full text-ink/70 transition-[background-color,color,transform] duration-200 ease-[var(--ease)] hover:bg-white/10 hover:text-ink active:scale-95 disabled:opacity-30"
+              aria-label="Next track"
+              title="Next track"
+            >
+              <SkipForward className="size-4" />
+            </button>
+
+            {/* The polite version: a count of people who want it gone. */}
+            <button
+              onClick={onVoteSkip}
+              disabled={!current}
+              className="flex h-9 items-center gap-1.5 rounded-full border border-white/15 px-3 text-xs font-semibold text-ink/85 transition-[background-color,border-color,transform] duration-200 ease-[var(--ease)] hover:-translate-y-px hover:bg-white/10 active:translate-y-0 disabled:opacity-30"
+              aria-label="Vote to skip"
+              title="Vote to skip this track"
+            >
+              <SkipForward className="size-3.5" />
+              <span className="font-mono tabular-nums">
+                {skipVotes}/{needVotes}
+              </span>
+            </button>
 
             <IconToggle
               active={repeat !== "off"}
-              disabled={!isHost}
+              disabled={!canControl}
               onClick={onRepeat}
               label={
                 repeat === "one"

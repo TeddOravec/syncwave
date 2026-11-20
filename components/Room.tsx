@@ -1358,7 +1358,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
         isPlaying={isPlaying}
         position={position}
         duration={current?.duration ?? 0}
-        isHost={isHost}
+        canControl={Boolean(you)}
         downloadPct={curDl}
         buffering={buffering}
         preparing={preparing}

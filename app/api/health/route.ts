@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { roomStatus } from "@/lib/rooms.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,14 @@ function buildId() {
 }
 
 export async function GET() {
+  // `playing` is what the deploy watcher waits on — restarting the container
+  // mid-song cuts the track, and this is the cheapest way for a script to ask
+  // "is anything audible right now?". Aggregate only: no room codes, no titles.
   return NextResponse.json({
     ok: true,
     service: "syncwave",
     uptime: process.uptime(),
     build: buildId(),
+    ...roomStatus(),
   });
 }
