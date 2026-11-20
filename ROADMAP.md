@@ -238,6 +238,11 @@ never forced: the running container is left alone.
 `/api/health` carrying `{rooms, playing, listeners}` is what makes step 3 honest — no log
 grepping, no guessing whether a long track is playing.
 
+Installed on CT 1490 as `syncwave-deploy.timer` (enabled 2026-11-20). Read the last few lines of
+`/opt/syncwave-deploy/deploy.log` to see what happened; `systemctl list-timers syncwave-deploy.timer`
+says when it next looks. Bootstrap note: the script lives in the repo it deploys, so the very
+first install needs one manual `git merge` on the CT before the timer can find it.
+
 ## Things that will bite regardless
 
 - A deploy does not reach an already-open tab; `/api/health` build-id reload is the only
