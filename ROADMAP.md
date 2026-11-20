@@ -40,9 +40,12 @@ this design invites. The first:
 > played: A, C, A, B instead of A, C, B. **The ring must keep every owner, including one with
 > nothing waiting; they are skipped, not deleted.**
 
-Still open in this workstream: the queue panel shows one flat list, so a person cannot see at
-a glance where their own tracks sit in the rotation. Grouping the panel by owner (with the
-rotation order made visible) is the obvious next slice, and it is UI only.
+**The panel now shows the playing order.** One list, sorted by a projection the server computes
+from the same ring the player uses (`lib/rotation.mjs`), with a chip row above it naming who holds
+tracks in turn order — first chip is next. That answers "what's next overall" without splitting the
+column into per-person lanes: at this column width (~520 px) lanes would be ~130 px each, and on a
+phone they would not exist at all. Reorder sends `{ id, beforeId }` because the visible order is a
+projection; an index would mean one thing on screen and another in the array.
 
 **Symptom Tedd reported:** one person queues forty tracks by one artist; everyone else
 waits forty tracks to hear theirs. Reordering can only move one row one place at a time,
