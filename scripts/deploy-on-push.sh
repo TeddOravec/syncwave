@@ -98,8 +98,12 @@ while :; do
     break
   fi
   PLAYING=$(printf '%s' "$BODY" | sed -n 's/.*"playing":\([0-9][0-9]*\).*/\1/p')
-  if [ "${PLAYING:-0}" = "0" ]; then
-    say "quiet moment (${waited}s) — deploying"
+  LISTENERS=$(printf '%s' "$BODY" | sed -n 's/.*"listeners":\([0-9][0-9]*\).*/\1/p')
+  # Nothing audible, OR nobody there to hear it. A room can sit "playing" with
+  # zero listeners for as long as a track lasts — it only advances when a client
+  # reports the end — and waiting that out would hold a deploy for no one.
+  if [ "${PLAYING:-0}" = "0" ] || [ "${LISTENERS:-0}" = "0" ]; then
+    say "quiet moment (${waited}s, playing=${PLAYING:-?}, listeners=${LISTENERS:-?}) — deploying"
     break
   fi
   if [ "$(date +%s)" -ge "$DEADLINE" ]; then
