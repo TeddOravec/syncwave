@@ -107,6 +107,9 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [holdBy, setHoldBy] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
   const [queue, setQueue] = useState<Track[]>([]);
+  /** The queue in the order it will play (ids from the server). Empty when
+   *  there is no order to promise: first-come mode, or shuffle. */
+  const [queueOrder, setQueueOrder] = useState<string[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -335,6 +338,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
       setRoomName(s.name || `Room ${code}`);
       setAiDj(s.aiDj ?? null);
       setQueue(s.queue);
+      setQueueOrder(Array.isArray(s.order) ? s.order : []);
       setParticipants(s.participants);
       setChat(s.chat || []);
       setHistory(s.history || []);
@@ -347,7 +351,10 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
       setAwaitingApproval(false);
       setJoined(true);
     });
-    socket.on(EVENTS.QUEUE_UPDATE, (s: { queue: Track[] }) => setQueue(s.queue));
+    socket.on(EVENTS.QUEUE_UPDATE, (s: { queue: Track[]; order?: string[] }) => {
+      setQueue(s.queue);
+      setQueueOrder(Array.isArray(s.order) ? s.order : []);
+    });
     socket.on(EVENTS.PARTICIPANTS_UPDATE, (s: { participants: Participant[] }) =>
       setParticipants(s.participants)
     );
@@ -692,8 +699,11 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     },
     [emit, signal]
   );
+  // "Put this before that" rather than "index N": the panel shows the playing
+  // order, which is a projection of the queue, so a numeric index means one
+  // thing on screen and another in the array. An id means the same everywhere.
   const reorderTrack = useCallback(
-    (id: string, toIndex: number) => emit(EVENTS.QUEUE_REORDER, { id, toIndex }),
+    (id: string, beforeId: string | null) => emit(EVENTS.QUEUE_REORDER, { id, beforeId }),
     [emit]
   );
   const removeTrack = useCallback((id: string) => emit(EVENTS.QUEUE_REMOVE, { id }), [emit]);
@@ -1189,6 +1199,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
                   isHost={isHost}
                   you={nick.trim()}
                   queueMode={queueMode}
+                  order={queueOrder}
                   onRemove={removeTrack}
                   onLike={likeTrack}
                   onVote={voteTrack}

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowBigUp,
   Check,
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeader } from "@/components/ui/panel";
 import { CountButton, DragHandle, RowAction, TrackRow } from "@/components/ui/track-row";
+import { Avatar } from "@/components/ui/avatar";
 
 function fmt(s: number) {
   if (!Number.isFinite(s) || s <= 0) return "";
@@ -36,6 +37,7 @@ function QueuePanel({
   isHost,
   you,
   queueMode,
+  order,
   onRemove,
   onLike,
   onVote,
@@ -51,10 +53,12 @@ function QueuePanel({
   you: string;
   /** How the room is picking what plays next. */
   queueMode: "fifo" | "roundrobin";
+  /** The queue in playing order (ids). Empty when there is no order to promise. */
+  order: string[];
   onRemove: (id: string) => void;
   onLike: (id: string) => void;
   onVote: (id: string) => void;
-  onReorder: (id: string, toIndex: number) => void;
+  onReorder: (id: string, beforeId: string | null) => void;
   onOpenSearch: () => void;
   /** Artist names in the queue lead to a search for them. */
   onArtistClick: (artist: string) => void;
@@ -70,10 +74,44 @@ function QueuePanel({
     return () => clearInterval(id);
   }, []);
 
-  const rows = useListTransition(queue, keyOf);
-  const { state, start, move, end, shiftFor } = useReorder(onReorder);
+  // The list is the playing order, not the arrival order: row one is the track
+  // that starts next. `order` is computed server-side by the same code that
+  // picks it (lib/rotation.mjs), so this cannot drift from what actually plays.
+  const ordered = useMemo(() => {
+    if (!order?.length) return queue;
+    const byId = new Map(queue.map((t) => [t.id as string, t]));
+    const head = order.map((id) => byId.get(id)).filter((t): t is Track => Boolean(t));
+    if (!head.length) return queue;
+    const seen = new Set(head.map((t) => t.id));
+    return [...head, ...queue.filter((t) => !seen.has(t.id))];
+  }, [queue, order]);
 
-  const indexOf = useCallback((key: string) => queue.findIndex((t) => keyOf(t) === key), [queue]);
+  // Who is holding tracks, in the order their turns come — first chip is next.
+  const turns = useMemo(() => {
+    const out: { owner: string; count: number }[] = [];
+    for (const t of ordered) {
+      const owner = t.addedBy || "someone";
+      const found = out.find((x) => x.owner === owner);
+      if (found) found.count += 1;
+      else out.push({ owner, count: 1 });
+    }
+    return out;
+  }, [ordered]);
+
+  /** Drop targets are ids, not indexes — see the note on ordered above. */
+  const dropAt = useCallback(
+    (key: string, toIndex: number) => {
+      const from = ordered.findIndex((t) => keyOf(t) === key);
+      const target = toIndex > from ? ordered[toIndex + 1] : ordered[toIndex];
+      onReorder(key, target?.id ?? null);
+    },
+    [ordered, onReorder]
+  );
+
+  const rows = useListTransition(ordered, keyOf);
+  const { state, start, move, end, shiftFor } = useReorder(dropAt);
+
+  const indexOf = useCallback((key: string) => ordered.findIndex((t) => keyOf(t) === key), [ordered]);
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
@@ -89,6 +127,31 @@ function QueuePanel({
           ) : undefined
         }
       />
+
+      {queueMode === "roundrobin" && turns.length > 1 ? (
+        <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          {turns.map((turn, i) => (
+            <span
+              key={turn.owner}
+              title={
+                i === 0
+                  ? `${turn.owner} is next — ${turn.count} queued`
+                  : `${turn.owner} — ${turn.count} queued`
+              }
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[11px]",
+                i === 0
+                  ? "border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-ink"
+                  : "border-[var(--soft-border)] bg-white/4 text-muted"
+              )}
+            >
+              <Avatar name={turn.owner} size="sm" />
+              <span className="max-w-[7rem] truncate">{turn.owner}</span>
+              <span className="tabular-nums">{turn.count}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {queue.length === 0 ? (
         // Compact on purpose: an empty queue hands its height to the
@@ -133,7 +196,7 @@ function QueuePanel({
                 dragHandle={
                   canArrange && !exiting ? (
                     <DragHandle
-                      onPointerDown={(e) => start(e, key, i, queue.length)}
+                      onPointerDown={(e) => start(e, key, i, ordered.length)}
                       onPointerMove={move}
                       onPointerUp={end}
                       onPointerCancel={end}
@@ -143,11 +206,11 @@ function QueuePanel({
                         // host-ordered queue is lost if you need a mouse.
                         if (e.key === "ArrowUp" && i > 0) {
                           e.preventDefault();
-                          onReorder(id, i - 1);
+                          dropAt(key, i - 1);
                         }
-                        if (e.key === "ArrowDown" && i < queue.length - 1) {
+                        if (e.key === "ArrowDown" && i < ordered.length - 1) {
                           e.preventDefault();
-                          onReorder(id, i + 1);
+                          dropAt(key, i + 1);
                         }
                       }}
                     />
