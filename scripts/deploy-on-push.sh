@@ -73,6 +73,16 @@ if [ "$PENDING" != "$REMOTE" ]; then
     exit 1
   fi
 
+  # The repo copy is the source of truth for humans; this file is what actually
+  # runs. Replace it ATOMICALLY (mv, never cp): bash reads a script as it goes,
+  # so overwriting this very file mid-run is undefined behaviour. The running
+  # process keeps its own inode, and the next tick runs the new logic.
+  if [ -f "$REPO/scripts/deploy-on-push.sh" ] && [ "$REPO/scripts/deploy-on-push.sh" -nt "$0" ]; then
+    install -m 755 "$REPO/scripts/deploy-on-push.sh" "$STATE/deploy.sh.new" &&
+      mv -f "$STATE/deploy.sh.new" "$STATE/deploy.sh" &&
+      say "runner updated from the repo"
+  fi
+
   say "building"
   if ! docker compose build >>"$LOG" 2>&1; then
     echo "$REMOTE" >"$STATE/failed-sha"
