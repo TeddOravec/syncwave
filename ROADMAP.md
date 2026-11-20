@@ -240,8 +240,15 @@ grepping, no guessing whether a long track is playing.
 
 Installed on CT 1490 as `syncwave-deploy.timer` (enabled 2026-11-20). Read the last few lines of
 `/opt/syncwave-deploy/deploy.log` to see what happened; `systemctl list-timers syncwave-deploy.timer`
-says when it next looks. Bootstrap note: the script lives in the repo it deploys, so the very
-first install needs one manual `git merge` on the CT before the timer can find it.
+says when it next looks.
+
+**The unit runs `/opt/syncwave-deploy/deploy.sh`, not the repo copy.** A deploy starts by merging,
+which rewrites the checkout — and bash reads a script as it executes, so a runner living in the
+checkout gets edited mid-run. After each merge the script compares itself against
+`scripts/deploy-on-push.sh` and, if they differ, installs the new one atomically (`install` into a
+temp name, then `mv`) and says so in the log. The repo copy is what you review; the installed copy
+is what is running, and the next tick uses the new logic. Bootstrap: the first install needs one
+manual `git merge` on the CT so the timer can find the script at all.
 
 ## Things that will bite regardless
 
