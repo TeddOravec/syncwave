@@ -127,6 +127,9 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   const [skipVotes, setSkipVotes] = useState(0);
   const [buffering, setBuffering] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  /** The next track change will pause for a spoken blurb: crossfading into it
+   *  would start the song under the voice and then jump back to zero. */
+  const [blurbNext, setBlurbNext] = useState(false);
   const [needsGesture, setNeedsGesture] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<Repeat>("off");
@@ -309,6 +312,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     setHoldQueue(Boolean(s.holdQueue));
     setHoldBy(s.holdBy || null);
     setPreparing(Boolean(s.preparing));
+    setBlurbNext(Boolean(s.blurbNext));
     setShuffle(Boolean(s.shuffle));
     if (Array.isArray(s.rrOut)) setRrOut(s.rrOut);
     if (s.repeat) setRepeat(s.repeat);
@@ -435,7 +439,30 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
   useEffect(() => {
     const active = activeSlot === "A" ? audioRef.current : nextAudioRef.current;
     const inactive = activeSlot === "A" ? nextAudioRef.current : audioRef.current;
-    if (!active || !current || preparing) return;
+    if (!active || !current) return;
+
+    if (preparing) {
+      // The room is holding for the host. A crossfade begun a few seconds ago
+      // is still rolling into a track that has not started; left alone it plays
+      // under the voice and then snaps back to zero when the clock starts.
+      //
+      // Only when the hold is the host's: every boundary goes through
+      // `preparing` for a moment while the audio is checked, and cancelling on
+      // that alone would turn every crossfade into a hard cut.
+      const heldForVoice = blurbNext || djTyping;
+      if (heldForVoice && (crossfadingRef.current || (inactive && !inactive.paused))) {
+        cancelCrossfade();
+        crossfadingRef.current = false;
+        if (inactive) {
+          inactive.pause();
+          inactive.removeAttribute("src");
+          inactive.load();
+        }
+        active.volume = Math.min(1, volumeRef.current * (current.gain ?? 1));
+      }
+      return;
+    }
+
     const wantSrc = `/audio/${current.videoId}`;
 
     if (!active.src.endsWith(wantSrc)) {
@@ -512,6 +539,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
         !crossfadingRef.current &&
         pb.isPlaying &&
         !shuffle &&
+        !blurbNext &&
         repeat !== "one" &&
         dur >= CROSSFADE_MIN_DURATION &&
         dur - expected > 0 &&
@@ -574,7 +602,7 @@ export default function Room({ code, asHost }: { code: string; asHost: boolean }
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.videoId, isPlaying, preparing, activeSlot, shuffle, repeat]);
+  }, [current?.videoId, isPlaying, preparing, activeSlot, shuffle, repeat, blurbNext, djTyping]);
 
   // The DJ's spoken blurb — a separate element on purpose. The room's clock and
   // sync loop are untouched by it, so a slow render or a browser that refuses to
